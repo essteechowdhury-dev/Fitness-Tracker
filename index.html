@@ -192,15 +192,6 @@
                             <option value="training">Training Day</option>
                             <option value="rest">Non-Training Day</option>
                         </select>
-                        <select id="nut-filter" onchange="App.Nutrition.render()" class="bg-[#121212] text-gray-300 text-xs border border-gray-700 rounded-lg p-1.5 outline-none">
-                            <option value="all">All Meals</option>
-                            <option value="Breakfast">Breakfast</option>
-                            <option value="Pre-Workout">Pre-Workout</option>
-                            <option value="Post-Workout">Post-Workout</option>
-                            <option value="Lunch">Lunch</option>
-                            <option value="Dinner">Dinner</option>
-                            <option value="Snack">Snack</option>
-                        </select>
                     </div>
 
                     <div class="grid grid-cols-4 gap-1 text-center divide-x divide-gray-700">
@@ -581,7 +572,9 @@
             },
             nutrition: [
                 { id: 'n1', type: 'training', cat: 'Breakfast', name: 'Oats & Whey', items: [{name: 'Oats', portion: 80, c: 54, p: 10, f: 5}, {name: 'Whey', portion: 30, c: 2, p: 24, f: 1}] },
-                { id: 'n2', type: 'training', cat: 'Post-Workout', name: 'Chicken & Rice', items: [{name: 'Chicken Breast', portion: 200, c: 0, p: 46, f: 2}, {name: 'White Rice', portion: 250, c: 70, p: 6, f: 1}] }
+                { id: 'n2', type: 'training', cat: 'Pre-Workout', name: 'Banana & Peanut Butter', items: [{name: 'Banana', portion: 120, c: 27, p: 1, f: 0}, {name: 'Peanut Butter', portion: 30, c: 6, p: 7, f: 15}] },
+                { id: 'n3', type: 'training', cat: 'Post-Workout', name: 'Chicken & Rice', items: [{name: 'Chicken Breast', portion: 200, c: 0, p: 46, f: 2}, {name: 'White Rice', portion: 250, c: 70, p: 6, f: 1}] },
+                { id: 'n4', type: 'training', cat: 'Dinner', name: 'Beef & Potatoes', items: [{name: 'Lean Beef', portion: 200, c: 0, p: 52, f: 10}, {name: 'Potatoes', portion: 300, c: 50, p: 6, f: 0}] }
             ]
         };
 
@@ -1031,12 +1024,12 @@
                     if (remote && remote.length > 0) {
                         this.meals = remote;
                     } else {
-                        // Load defaults if empty
-                        let local = localStorage.getItem('trackfit_meals');
+                        // Load defaults if empty - Updated local key to force load populated list
+                        let local = localStorage.getItem('trackfit_meals_v2');
                         if (local) this.meals = JSON.parse(local);
                         else {
                             this.meals = DefaultData.nutrition;
-                            localStorage.setItem('trackfit_meals', JSON.stringify(this.meals));
+                            localStorage.setItem('trackfit_meals_v2', JSON.stringify(this.meals));
                         }
                     }
                 },
@@ -1044,8 +1037,7 @@
                 async resetDefaults() {
                     if(!confirm("Restore default meal templates? All custom data will be lost.")) return;
                     this.meals = JSON.parse(JSON.stringify(DefaultData.nutrition));
-                    localStorage.setItem('trackfit_meals', JSON.stringify(this.meals));
-                    // DB wipe mock (since REST API requires IDs for delete, we just reset local for demo)
+                    localStorage.setItem('trackfit_meals_v2', JSON.stringify(this.meals));
                     this.render();
                 },
 
@@ -1056,10 +1048,7 @@
                 render() {
                     this.load().then(() => {
                         const type = document.getElementById('nut-day-type').value;
-                        const filter = document.getElementById('nut-filter').value;
-                        
                         let filtered = this.meals.filter(m => m.type === type);
-                        if (filter !== 'all') filtered = filtered.filter(m => m.cat === filter);
 
                         // Calc Totals
                         let tc = 0, tp = 0, tf = 0;
@@ -1075,7 +1064,7 @@
                         // Render Cards
                         const cont = document.getElementById('meal-cards-container');
                         if (filtered.length === 0) {
-                            cont.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">No meals found for this filter.</p>';
+                            cont.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">No meals found for this day type.</p>';
                             return;
                         }
 
@@ -1177,7 +1166,7 @@
                     };
                     
                     this.meals.push(meal);
-                    localStorage.setItem('trackfit_meals', JSON.stringify(this.meals));
+                    localStorage.setItem('trackfit_meals_v2', JSON.stringify(this.meals));
                     await DB.request('meal_logs', 'POST', meal);
                     
                     this.basket = [];
@@ -1188,7 +1177,7 @@
 
                 async deleteMeal(id) {
                     this.meals = this.meals.filter(m => m.id !== id);
-                    localStorage.setItem('trackfit_meals', JSON.stringify(this.meals));
+                    localStorage.setItem('trackfit_meals_v2', JSON.stringify(this.meals));
                     await DB.request('meal_logs', 'DELETE', {id});
                     this.render();
                 }
