@@ -367,7 +367,7 @@
                 }
             },
             
-            // Abstract fetch with fallback to local storage
+            // Standard fetch for logs
             async request(table, method, body = null, selectQuery = '') {
                 const localKey = `trackfit_${table}`;
                 
@@ -379,7 +379,6 @@
                 if (['POST', 'PATCH', 'DELETE'].includes(method)) {
                     if (method === 'POST') localData.push({ id: Date.now().toString(), ...body });
                     if (method === 'DELETE' && body?.id) localData = localData.filter(i => i.id !== body.id);
-                    // (Simplified local update logic for SPA constraints)
                     localStorage.setItem(localKey, JSON.stringify(localData));
                 }
 
@@ -397,7 +396,6 @@
                     let options = { method, headers };
                     if (body) options.body = JSON.stringify(body);
                     
-                    // For DELETE, Supabase REST requires query params (e.g. ?id=eq.123)
                     if (method === 'DELETE' && body?.id) {
                         url = `${Config.supaUrl}${table}?id=eq.${body.id}`;
                         delete options.body;
@@ -408,18 +406,63 @@
                     
                     const remoteData = method === 'DELETE' ? null : await res.json();
                     
-                    // Sync GET
                     if (method === 'GET') {
                         localStorage.setItem(localKey, JSON.stringify(remoteData));
                         return remoteData;
                     }
-                    return localData; // Return locally updated array for immediate UI reflection
+                    return localData;
 
                 } catch (err) {
                     console.warn(`Supabase fetch failed (${table}). Falling back to local storage.`, err);
                     this.setOnline(false);
                     return localData;
                 }
+            },
+
+            // New Cross-Device State Sync for Settings (Routines/Meals)
+            async saveState(key, data) {
+                const localKey = `trackfit_state_${key}`;
+                localStorage.setItem(localKey, JSON.stringify(data));
+                
+                if (!this.isOnline) return;
+                try {
+                    const headers = { 'apikey': Config.supaKey, 'Authorization': `Bearer ${Config.supaKey}`, 'Content-Type': 'application/json' };
+                    // Check if setting exists
+                    const check = await fetch(`${Config.supaUrl}sync_state?id=eq.${key}`, { headers });
+                    const rows = await check.json();
+                    
+                    if (rows && rows.length > 0) {
+                        await fetch(`${Config.supaUrl}sync_state?id=eq.${key}`, { 
+                            method: 'PATCH', headers, body: JSON.stringify({ data }) 
+                        });
+                    } else {
+                        await fetch(`${Config.supaUrl}sync_state`, { 
+                            method: 'POST', headers, body: JSON.stringify({ id: key, data }) 
+                        });
+                    }
+                } catch(e) { console.warn('Cloud sync failed, saved locally.', e); }
+            },
+
+            async fetchState(key) {
+                const localKey = `trackfit_state_${key}`;
+                const localData = JSON.parse(localStorage.getItem(localKey));
+                
+                if (!this.isOnline) return localData;
+                try {
+                    const headers = { 'apikey': Config.supaKey, 'Authorization': `Bearer ${Config.supaKey}` };
+                    const res = await fetch(`${Config.supaUrl}sync_state?id=eq.${key}`, { headers });
+                    
+                    if (res.ok) {
+                        const rows = await res.json();
+                        if (rows && rows.length > 0) {
+                            const remoteData = rows[0].data;
+                            localStorage.setItem(localKey, JSON.stringify(remoteData));
+                            return remoteData;
+                        }
+                    }
+                } catch(e) { console.warn('Cloud fetch failed, using local.', e); }
+                
+                return localData;
             }
         };
 
@@ -490,7 +533,6 @@
             },
             
             setupAudio() {
-                // Shortest valid silent base64 mp3 to trick OS into keeping active
                 const silentMp3 = "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU2LjM2LjEwMAAAAAAAAAAAAAAA//OEAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6v////////////////////////////////8AAAAATGF2YzU2LjQxAAAAAAAAAAAAAAAAJAAAAAAAAAAAASDs90hvAAAAAAAAAAAAAAAAAAAA//MUZAAAAAGkAAAAAAAAA0gAAAAATEFN//MUZAMAAAGkAAAAAAAAA0gAAAAARTMu//MUZAYAAAGkAAAAAAAAA0gAAAAA//MUZAkAAAGkAAAAAAAAA0gAAAAA";
                 this.bgAudio = new Audio(silentMp3);
                 this.bgAudio.loop = true;
@@ -650,18 +692,23 @@
                 DB.init();
                 Engine.init();
                 
-                // Ask notification perm passively
                 if ("Notification" in window && Notification.permission !== "granted" && Notification.permission !== "denied") {
                     Notification.requestPermission();
                 }
 
-                // Load config routines or defaults
-                let storedRoutines = localStorage.getItem('trackfit_routines');
-                if (storedRoutines) {
-                    this.State.routines = JSON.parse(storedRoutines);
+                // Sync Routines via Supabase
+                let remoteRoutines = await DB.fetchState('routines');
+                if (remoteRoutines) {
+                    this.State.routines = remoteRoutines;
                 } else {
-                    this.State.routines = DefaultData.routines;
-                    localStorage.setItem('trackfit_routines', JSON.stringify(this.State.routines));
+                    let stored = JSON.parse(localStorage.getItem('trackfit_state_routines') || 'null');
+                    if (stored) this.State.routines = stored;
+                    else {
+                        // Migration from old key if exists
+                        let old = JSON.parse(localStorage.getItem('trackfit_routines') || 'null');
+                        this.State.routines = old || DefaultData.routines;
+                        DB.saveState('routines', this.State.routines);
+                    }
                 }
 
                 // Load today's logs
@@ -931,7 +978,6 @@
                 
                 async load() {
                     this.logs = await DB.request('bodyweight_logs', 'GET') || [];
-                    // Ensure local state formatting
                     document.getElementById('bw-date').value = App.State.dateStr;
                 },
 
@@ -961,15 +1007,13 @@
                             return;
                         }
 
-                        // Sort desc by date
                         let sorted = [...this.logs].sort((a,b) => new Date(b.date) - new Date(a.date));
                         
-                        // Group by week ending Sunday
                         const weeks = {};
                         sorted.forEach(l => {
                             const d = new Date(l.date);
                             const day = d.getDay();
-                            const diff = d.getDate() - day + (day == 0 ? 0 : 7); // nearest next Sunday
+                            const diff = d.getDate() - day + (day == 0 ? 0 : 7);
                             const sun = new Date(d.setDate(diff));
                             const wKey = sun.toISOString().split('T')[0];
                             if(!weeks[wKey]) weeks[wKey] = [];
@@ -1030,16 +1074,17 @@
                 editingId: null,
                 
                 async load() {
-                    let remote = await DB.request('meal_logs', 'GET');
-                    if (remote && remote.length > 0) {
-                        this.meals = remote;
+                    // Sync Meals via Supabase
+                    let remoteMeals = await DB.fetchState('meals');
+                    if (remoteMeals) {
+                        this.meals = remoteMeals;
                     } else {
-                        // Load defaults if empty - Updated local key to force load populated list
-                        let local = localStorage.getItem('trackfit_meals_v3');
-                        if (local) this.meals = JSON.parse(local);
+                        let stored = JSON.parse(localStorage.getItem('trackfit_state_meals') || 'null');
+                        if (stored) this.meals = stored;
                         else {
-                            this.meals = DefaultData.nutrition;
-                            localStorage.setItem('trackfit_meals_v3', JSON.stringify(this.meals));
+                            let old = JSON.parse(localStorage.getItem('trackfit_meals_v3') || 'null');
+                            this.meals = old || DefaultData.nutrition;
+                            DB.saveState('meals', this.meals);
                         }
                     }
                 },
@@ -1047,7 +1092,7 @@
                 async resetDefaults() {
                     if(!confirm("Restore default meal templates? All custom data will be lost.")) return;
                     this.meals = JSON.parse(JSON.stringify(DefaultData.nutrition));
-                    localStorage.setItem('trackfit_meals_v3', JSON.stringify(this.meals));
+                    DB.saveState('meals', this.meals);
                     this.render();
                 },
 
@@ -1172,6 +1217,7 @@
                     this.editingId = null;
                     this.basket = [];
                     this.renderBasket();
+                    document.getElementById('mb-cat').value = document.getElementById('nut-filter').value;
                     UI.openModal('meal-builder-modal');
                 },
 
@@ -1204,16 +1250,12 @@
                     if (this.editingId) {
                         const index = this.meals.findIndex(m => m.id === this.editingId);
                         if (index !== -1) this.meals[index] = mealData;
-                        
-                        await DB.request('meal_logs', 'DELETE', {id: this.editingId});
-                        await DB.request('meal_logs', 'POST', mealData);
                         this.editingId = null;
                     } else {
                         this.meals.push(mealData);
-                        await DB.request('meal_logs', 'POST', mealData);
                     }
                     
-                    localStorage.setItem('trackfit_meals_v3', JSON.stringify(this.meals));
+                    DB.saveState('meals', this.meals);
                     
                     this.basket = [];
                     this.renderBasket();
@@ -1223,8 +1265,7 @@
 
                 async deleteMeal(id) {
                     this.meals = this.meals.filter(m => m.id !== id);
-                    localStorage.setItem('trackfit_meals_v3', JSON.stringify(this.meals));
-                    await DB.request('meal_logs', 'DELETE', {id});
+                    DB.saveState('meals', this.meals);
                     this.render();
                 }
             },
@@ -1293,13 +1334,13 @@
                 updateEx(idx, field, val) {
                     const r = document.getElementById('config-routine-selector').value;
                     App.State.routines[r][idx][field] = val;
-                    localStorage.setItem('trackfit_routines', JSON.stringify(App.State.routines));
+                    DB.saveState('routines', App.State.routines);
                 },
 
                 removeExercise(idx) {
                     const r = document.getElementById('config-routine-selector').value;
                     App.State.routines[r].splice(idx, 1);
-                    localStorage.setItem('trackfit_routines', JSON.stringify(App.State.routines));
+                    DB.saveState('routines', App.State.routines);
                     this.render();
                     if(App.State.activeRoutine === r) App.Workout.renderPills();
                 },
@@ -1312,7 +1353,7 @@
                         sets: 3,
                         reps: '8-12'
                     });
-                    localStorage.setItem('trackfit_routines', JSON.stringify(App.State.routines));
+                    DB.saveState('routines', App.State.routines);
                     this.render();
                     if(App.State.activeRoutine === r) App.Workout.renderPills();
                 },
@@ -1320,7 +1361,7 @@
                 reset() {
                     if(!confirm("Reset ALL routines to default? Custom exercises will be lost.")) return;
                     App.State.routines = JSON.parse(JSON.stringify(DefaultData.routines));
-                    localStorage.setItem('trackfit_routines', JSON.stringify(App.State.routines));
+                    DB.saveState('routines', App.State.routines);
                     this.render();
                     App.Workout.renderPills();
                 }
