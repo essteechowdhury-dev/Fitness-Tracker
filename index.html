@@ -187,10 +187,19 @@
             <section id="tab-nutrition" class="tab-content hidden space-y-4">
                 <!-- Macro Summary Banner -->
                 <div class="bg-gradient-to-br from-surface to-gray-800 rounded-xl p-4 shadow-lg border border-gray-700 sticky top-0 z-10">
-                    <div class="flex justify-between items-center mb-4">
-                        <select id="nut-day-type" onchange="App.Nutrition.render()" class="bg-[#121212] text-white text-sm border border-gray-700 rounded-lg p-1.5 outline-none font-bold">
+                    
+                    <div class="flex gap-2 mb-4">
+                        <select id="nut-day-type" onchange="App.Nutrition.render()" class="flex-1 bg-[#121212] text-white text-sm border border-gray-700 rounded-lg p-2 outline-none font-bold">
                             <option value="training">Training Day</option>
                             <option value="rest">Non-Training Day</option>
+                        </select>
+                        <select id="nut-filter" onchange="App.Nutrition.render()" class="flex-1 bg-[#121212] text-gray-300 text-sm border border-gray-700 rounded-lg p-2 outline-none font-bold">
+                            <option value="Breakfast">Breakfast</option>
+                            <option value="Pre-Workout">Pre-Workout</option>
+                            <option value="Post-Workout">Post-Workout</option>
+                            <option value="Lunch">Lunch</option>
+                            <option value="Dinner">Dinner</option>
+                            <option value="Snack">Snack</option>
                         </select>
                     </div>
 
@@ -212,7 +221,7 @@
                     <!-- Meals injected here -->
                 </div>
                 
-                <button onclick="UI.openModal('meal-builder-modal')" class="w-full py-3 border-2 border-dashed border-gray-700 rounded-xl text-gray-400 font-bold hover:border-gray-500 hover:text-gray-200 transition-colors flex items-center justify-center gap-2">
+                <button onclick="App.Nutrition.openAddModal()" class="w-full py-3 border-2 border-dashed border-gray-700 rounded-xl text-gray-400 font-bold hover:border-gray-500 hover:text-gray-200 transition-colors flex items-center justify-center gap-2">
                     ➕ Add Custom Meal
                 </button>
             </section>
@@ -1018,6 +1027,7 @@
             Nutrition: {
                 meals: [],
                 basket: [],
+                editingId: null,
                 
                 async load() {
                     let remote = await DB.request('meal_logs', 'GET');
@@ -1025,11 +1035,11 @@
                         this.meals = remote;
                     } else {
                         // Load defaults if empty - Updated local key to force load populated list
-                        let local = localStorage.getItem('trackfit_meals_v2');
+                        let local = localStorage.getItem('trackfit_meals_v3');
                         if (local) this.meals = JSON.parse(local);
                         else {
                             this.meals = DefaultData.nutrition;
-                            localStorage.setItem('trackfit_meals_v2', JSON.stringify(this.meals));
+                            localStorage.setItem('trackfit_meals_v3', JSON.stringify(this.meals));
                         }
                     }
                 },
@@ -1037,7 +1047,7 @@
                 async resetDefaults() {
                     if(!confirm("Restore default meal templates? All custom data will be lost.")) return;
                     this.meals = JSON.parse(JSON.stringify(DefaultData.nutrition));
-                    localStorage.setItem('trackfit_meals_v2', JSON.stringify(this.meals));
+                    localStorage.setItem('trackfit_meals_v3', JSON.stringify(this.meals));
                     this.render();
                 },
 
@@ -1048,7 +1058,9 @@
                 render() {
                     this.load().then(() => {
                         const type = document.getElementById('nut-day-type').value;
-                        let filtered = this.meals.filter(m => m.type === type);
+                        const filter = document.getElementById('nut-filter').value;
+                        
+                        let filtered = this.meals.filter(m => m.type === type && m.cat === filter);
 
                         // Calc Totals
                         let tc = 0, tp = 0, tf = 0;
@@ -1064,7 +1076,7 @@
                         // Render Cards
                         const cont = document.getElementById('meal-cards-container');
                         if (filtered.length === 0) {
-                            cont.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">No meals found for this day type.</p>';
+                            cont.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">No meals found for this filter.</p>';
                             return;
                         }
 
@@ -1101,6 +1113,7 @@
                                     `).join('')}
                                 </div>
                                 <div class="bg-surface p-2 flex justify-end gap-2 border-t border-gray-800">
+                                    <button onclick="App.Nutrition.editMeal('${m.id}')" class="text-xs text-blue-400 bg-blue-500/10 px-3 py-1 rounded">✏️ Edit</button>
                                     <button onclick="App.Nutrition.deleteMeal('${m.id}')" class="text-xs text-red-500 bg-red-500/10 px-3 py-1 rounded">✕ Delete</button>
                                 </div>
                             </div>
@@ -1155,19 +1168,52 @@
                     `).join('');
                 },
 
+                openAddModal() {
+                    this.editingId = null;
+                    this.basket = [];
+                    this.renderBasket();
+                    UI.openModal('meal-builder-modal');
+                },
+
+                editMeal(id) {
+                    const meal = this.meals.find(m => m.id === id);
+                    if (!meal) return;
+                    
+                    this.editingId = id;
+                    document.getElementById('mb-day').value = meal.type;
+                    document.getElementById('mb-cat').value = meal.cat;
+                    
+                    // Deep copy items to basket so we don't mutate original yet
+                    this.basket = JSON.parse(JSON.stringify(meal.items));
+                    this.renderBasket();
+                    
+                    UI.openModal('meal-builder-modal');
+                },
+
                 async saveMeal() {
                     if (this.basket.length === 0) return alert("Basket is empty.");
-                    const meal = {
-                        id: Date.now().toString(),
+                    
+                    const mealData = {
+                        id: this.editingId || Date.now().toString(),
                         type: document.getElementById('mb-day').value,
                         cat: document.getElementById('mb-cat').value,
                         name: 'Custom ' + document.getElementById('mb-cat').value,
                         items: [...this.basket]
                     };
                     
-                    this.meals.push(meal);
-                    localStorage.setItem('trackfit_meals_v2', JSON.stringify(this.meals));
-                    await DB.request('meal_logs', 'POST', meal);
+                    if (this.editingId) {
+                        const index = this.meals.findIndex(m => m.id === this.editingId);
+                        if (index !== -1) this.meals[index] = mealData;
+                        
+                        await DB.request('meal_logs', 'DELETE', {id: this.editingId});
+                        await DB.request('meal_logs', 'POST', mealData);
+                        this.editingId = null;
+                    } else {
+                        this.meals.push(mealData);
+                        await DB.request('meal_logs', 'POST', mealData);
+                    }
+                    
+                    localStorage.setItem('trackfit_meals_v3', JSON.stringify(this.meals));
                     
                     this.basket = [];
                     this.renderBasket();
@@ -1177,7 +1223,7 @@
 
                 async deleteMeal(id) {
                     this.meals = this.meals.filter(m => m.id !== id);
-                    localStorage.setItem('trackfit_meals_v2', JSON.stringify(this.meals));
+                    localStorage.setItem('trackfit_meals_v3', JSON.stringify(this.meals));
                     await DB.request('meal_logs', 'DELETE', {id});
                     this.render();
                 }
