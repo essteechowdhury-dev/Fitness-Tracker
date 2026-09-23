@@ -194,6 +194,7 @@
                             <option value="rest">Non-Training Day</option>
                         </select>
                         <select id="nut-filter" onchange="App.Nutrition.render()" class="flex-1 bg-[#121212] text-gray-300 text-sm border border-gray-700 rounded-lg p-2 outline-none font-bold">
+                            <option value="all">All Meals</option>
                             <option value="Breakfast">Breakfast</option>
                             <option value="Pre-Workout">Pre-Workout</option>
                             <option value="Post-Workout">Post-Workout</option>
@@ -367,11 +368,9 @@
                 }
             },
             
-            // Standard fetch for logs
+            // Abstract fetch with fallback to local storage
             async request(table, method, body = null, selectQuery = '') {
                 const localKey = `trackfit_${table}`;
-                
-                // Optimistic Local Read/Write
                 let localData = JSON.parse(localStorage.getItem(localKey) || '[]');
                 
                 if (method === 'GET' && !this.isOnline) return localData;
@@ -402,7 +401,12 @@
                     }
 
                     const res = await fetch(url, options);
-                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    
+                    // If the database has an error (like table missing), don't go offline, just log it.
+                    if (!res.ok) {
+                        console.warn(`Supabase Database Error on ${table}: HTTP ${res.status}`);
+                        return localData; 
+                    }
                     
                     const remoteData = method === 'DELETE' ? null : await res.json();
                     
@@ -413,7 +417,8 @@
                     return localData;
 
                 } catch (err) {
-                    console.warn(`Supabase fetch failed (${table}). Falling back to local storage.`, err);
+                    // Actual network failure (no internet)
+                    console.warn(`Network Error when fetching ${table}. Switching to Local Mode.`, err);
                     this.setOnline(false);
                     return localData;
                 }
@@ -427,10 +432,10 @@
                 if (!this.isOnline) return;
                 try {
                     const headers = { 'apikey': Config.supaKey, 'Authorization': `Bearer ${Config.supaKey}`, 'Content-Type': 'application/json' };
-                    // Check if setting exists
                     const check = await fetch(`${Config.supaUrl}sync_state?id=eq.${key}`, { headers });
-                    const rows = await check.json();
+                    if (!check.ok) return; // DB Error, ignore and keep local
                     
+                    const rows = await check.json();
                     if (rows && rows.length > 0) {
                         await fetch(`${Config.supaUrl}sync_state?id=eq.${key}`, { 
                             method: 'PATCH', headers, body: JSON.stringify({ data }) 
@@ -440,7 +445,7 @@
                             method: 'POST', headers, body: JSON.stringify({ id: key, data }) 
                         });
                     }
-                } catch(e) { console.warn('Cloud sync failed, saved locally.', e); }
+                } catch(e) { console.warn('Cloud state sync network fail.', e); }
             },
 
             async fetchState(key) {
@@ -460,7 +465,7 @@
                             return remoteData;
                         }
                     }
-                } catch(e) { console.warn('Cloud fetch failed, using local.', e); }
+                } catch(e) { console.warn('Cloud fetch network fail.', e); }
                 
                 return localData;
             }
@@ -704,7 +709,7 @@
                     let stored = JSON.parse(localStorage.getItem('trackfit_state_routines') || 'null');
                     if (stored) this.State.routines = stored;
                     else {
-                        // Migration from old key if exists
+                        // Migration from old key
                         let old = JSON.parse(localStorage.getItem('trackfit_routines') || 'null');
                         this.State.routines = old || DefaultData.routines;
                         DB.saveState('routines', this.State.routines);
@@ -1074,7 +1079,7 @@
                 editingId: null,
                 
                 async load() {
-                    // Sync Meals via Supabase
+                    // Sync Meals via Supabase state
                     let remoteMeals = await DB.fetchState('meals');
                     if (remoteMeals) {
                         this.meals = remoteMeals;
@@ -1105,7 +1110,11 @@
                         const type = document.getElementById('nut-day-type').value;
                         const filter = document.getElementById('nut-filter').value;
                         
-                        let filtered = this.meals.filter(m => m.type === type && m.cat === filter);
+                        let filtered = this.meals.filter(m => m.type === type);
+                        
+                        if (filter !== 'all') {
+                            filtered = filtered.filter(m => m.cat === filter);
+                        }
 
                         // Calc Totals
                         let tc = 0, tp = 0, tf = 0;
@@ -1217,7 +1226,8 @@
                     this.editingId = null;
                     this.basket = [];
                     this.renderBasket();
-                    document.getElementById('mb-cat').value = document.getElementById('nut-filter').value;
+                    const filterVal = document.getElementById('nut-filter').value;
+                    document.getElementById('mb-cat').value = filterVal === 'all' ? 'Breakfast' : filterVal;
                     UI.openModal('meal-builder-modal');
                 },
 
@@ -1274,10 +1284,10 @@
                 async render() {
                     const filter = document.getElementById('history-filter').value;
                     let logs = JSON.parse(localStorage.getItem('trackfit_workout_logs') || '[]');
-                    // Fetch fresh from DB if online
+                    
                     if(DB.isOnline) {
                          const remoteLogs = await DB.request('workout_logs', 'GET');
-                         if(remoteLogs) logs = remoteLogs;
+                         if(remoteLogs && remoteLogs.length > 0) logs = remoteLogs;
                     }
 
                     if (filter !== 'all') logs = logs.filter(l => l.routine === filter);
