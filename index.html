@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TrackFit SPA</title>
+    <title>Fitness & Macro Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -12,912 +12,1296 @@
                 extend: {
                     colors: {
                         canvas: '#121212',
-                        card: '#1A1A1A',
-                        cardhover: '#222222',
-                        accent: '#EF4444', 
-                        accentDark: '#B91C1C',
-                        blueBtn: '#3B82F6'
+                        surface: '#1E1E1E',
+                        accent: '#DC2626',
+                        accentHover: '#b91c1c'
                     },
                     fontFamily: {
                         sans: ['Inter', 'system-ui', 'sans-serif'],
-                        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+                        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
                     }
                 }
             }
         }
     </script>
     <style>
-        body { background-color: #121212; color: #E5E7EB; overscroll-behavior-y: none; font-family: 'Inter', sans-serif; }
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        /* Custom Scrollbar for pills and lists */
+        ::-webkit-scrollbar { height: 4px; width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
         
-        /* Custom Inputs */
-        input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); }
+        body { background-color: #121212; color: #e5e5e5; overscroll-behavior-y: none; }
         
-        /* Tab Styles */
-        .tab-active { background-color: #EF4444; color: white; border-color: #EF4444; }
-        .tab-inactive { background-color: transparent; color: #9CA3AF; border-color: #374151; }
+        .hide-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+        .hide-scroll::-webkit-scrollbar { display: none; }
+
+        /* Modal transitions */
+        .modal-enter { opacity: 0; transform: scale(0.95); }
+        .modal-enter-active { opacity: 1; transform: scale(1); transition: opacity 200ms, transform 200ms; }
+        .modal-leave { opacity: 1; transform: scale(1); }
+        .modal-leave-active { opacity: 0; transform: scale(0.95); transition: opacity 200ms, transform 200ms; }
         
-        /* Bottom Nav Active State */
-        .nav-active { color: #EF4444; }
-        .nav-inactive { color: #6B7280; }
+        .nav-active { border-bottom: 2px solid #DC2626; color: #fff; }
     </style>
 </head>
-<body class="bg-canvas text-gray-200 antialiased pt-24 pb-24 flex flex-col h-screen">
-
-    <!-- Top Header -->
-    <header class="fixed top-0 w-full bg-[#121212] z-50 border-b border-gray-800 px-4 py-3">
-        <div class="flex justify-between items-center max-w-lg mx-auto">
+<body class="flex flex-col h-screen overflow-hidden">
+    <!-- HEADER -->
+    <header class="bg-surface border-b border-gray-800 p-4 shrink-0 shadow-md z-20">
+        <div class="max-w-md mx-auto flex justify-between items-center">
             <div>
-                <h1 class="text-xl font-black tracking-tight"><span class="text-white">Track</span><span class="text-accent">Fit</span></h1>
-                <p class="text-[10px] text-gray-500 font-mono tracking-wider mt-0.5">Upper 1 | Lower 1 | Upper 2 | Lower 2</p>
+                <h1 class="text-xl font-bold text-white tracking-tight">Track<span class="text-accent">Fit</span></h1>
+                <p class="text-[10px] text-gray-400 mt-1 font-mono tracking-wider">Upper 1 | Lower 1 | Upper 2 | Lower 2</p>
             </div>
             <div class="flex items-center gap-3">
-                <div id="connectionBadge" class="text-[10px] font-bold px-2.5 py-1 rounded-md bg-orange-900/30 text-orange-400 border border-orange-900/50 flex items-center gap-1">
-                    ⚡ Local Mode
+                <div id="connection-badge" class="px-2 py-1 rounded text-xs font-bold bg-amber-900/50 text-amber-500 border border-amber-700/50 flex items-center gap-1 transition-colors">
+                    ⚡ Local
                 </div>
-                <button onclick="toggleModal('historyModal')" class="bg-[#1E1E1E] hover:bg-gray-800 p-2 rounded-md transition-colors text-sm">📜</button>
-                <button onclick="toggleModal('exerciseModal')" class="bg-[#1E1E1E] hover:bg-gray-800 p-2 rounded-md transition-colors text-sm">⚙️</button>
+                <button onclick="UI.openModal('history-modal')" class="p-2 text-gray-400 hover:text-white transition bg-gray-800/50 rounded-lg">📜</button>
+                <button onclick="UI.openModal('exercises-modal')" class="p-2 text-gray-400 hover:text-white transition bg-gray-800/50 rounded-lg">⚙️</button>
             </div>
         </div>
     </header>
 
-    <!-- MAIN VIEWS CONTAINER -->
-    <div class="flex-1 overflow-y-auto w-full max-w-lg mx-auto px-4 hide-scrollbar">
-        
-        <!-- ============================== -->
-        <!-- VIEW 1: TRACKER                -->
-        <!-- ============================== -->
-        <main id="view-tracker" class="space-y-6 pb-6">
+    <!-- MAIN VIEW AREA -->
+    <main class="flex-1 overflow-y-auto relative w-full hide-scroll" id="main-scroll-area">
+        <div class="max-w-md mx-auto p-4 pb-24">
             
-            <!-- Routine Selector -->
-            <div class="bg-card border border-gray-800 rounded-xl p-4 shadow-sm">
-                <label class="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-2">Active Routine</label>
-                <select id="routineSelector" class="w-full bg-[#121212] border border-gray-700 rounded-lg p-3 text-white font-medium focus:outline-none focus:border-gray-500" onchange="loadRoutine()">
-                    <option value="UPPER BODY 1">Monday - UPPER BODY 1</option>
-                    <option value="LOWER BODY 1">Tuesday - LOWER BODY 1</option>
-                    <option value="UPPER BODY 2">Thursday - UPPER BODY 2</option>
-                    <option value="LOWER BODY 2">Friday - LOWER BODY 2</option>
-                </select>
-            </div>
+            <!-- TAB 1: WORKOUT -->
+            <section id="tab-workout" class="tab-content active-tab space-y-4">
+                
+                <!-- Controls -->
+                <div class="bg-surface rounded-xl p-4 shadow-lg border border-gray-800">
+                    <label class="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Active Routine</label>
+                    <select id="routine-selector" class="w-full bg-[#121212] text-white border border-gray-700 rounded-lg p-3 outline-none focus:border-accent appearance-none mb-4" onchange="App.Workout.changeRoutine()">
+                        <option value="upper1">Monday - UPPER BODY 1</option>
+                        <option value="lower1">Tuesday - LOWER BODY 1</option>
+                        <option value="upper2">Thursday - UPPER BODY 2</option>
+                        <option value="lower2">Friday - LOWER BODY 2</option>
+                    </select>
 
-            <!-- Session Timer & Start -->
-            <div class="bg-card border border-gray-800 rounded-xl p-4 flex items-center justify-between shadow-sm">
-                <div class="text-3xl font-black font-mono tracking-widest text-white" id="sessionTimer">00:00:00</div>
-                <button id="sessionToggle" onclick="toggleSession()" class="bg-[#22C55E] hover:bg-green-500 text-white font-bold py-2.5 px-5 rounded-lg transition-colors shadow-md uppercase tracking-wide text-sm flex items-center gap-1">
-                    ▶ Start Session
-                </button>
-            </div>
-
-            <!-- Exercise Tabs -->
-            <div class="flex overflow-x-auto hide-scrollbar gap-2 py-1" id="exerciseTabs">
-                <!-- Injected via JS -->
-            </div>
-
-            <!-- Active Exercise Card -->
-            <div id="activeExerciseCard" class="bg-card border border-gray-800 rounded-xl p-5 shadow-sm relative hidden">
-                <div class="flex justify-between items-center border-b border-gray-800 pb-3 mb-4">
-                    <span id="progressBadge" class="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Exercise 1 of X</span>
-                    <div id="activeTimer" class="text-sm font-black font-mono text-gray-300">
-                        00:00
+                    <div class="flex items-center justify-between">
+                        <div class="font-mono text-2xl font-bold text-white tracking-widest" id="session-timer">00:00:00</div>
+                        <button id="session-toggle" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg shadow-lg flex items-center gap-2 transition-transform transform active:scale-95" onclick="App.Workout.toggleSession()">
+                            ▶ START SESSION
+                        </button>
                     </div>
                 </div>
 
-                <h2 id="exerciseName" class="text-2xl font-black text-white uppercase mb-6 tracking-tight">EXERCISE NAME</h2>
+                <!-- Exercise Pills -->
+                <div class="flex overflow-x-auto gap-2 py-1 hide-scroll" id="exercise-pills-container">
+                    <!-- Injected via JS -->
+                </div>
 
-                <div class="grid grid-cols-3 gap-2 mb-6 text-center text-sm border-b border-gray-800 pb-5">
-                    <div>
-                        <div class="text-gray-500 text-[10px] uppercase font-bold tracking-widest">Target Sets</div>
-                        <div class="font-black text-white text-lg mt-1" id="targetSetsReps">4</div>
+                <!-- Active Exercise Card -->
+                <div class="bg-surface rounded-xl shadow-lg border border-gray-800 overflow-hidden relative">
+                    <!-- Progress Bar Header -->
+                    <div class="bg-gray-800/50 px-4 py-2 border-b border-gray-800 flex justify-between items-center">
+                        <span class="text-xs font-bold text-gray-400 uppercase tracking-widest" id="exercise-progress">Exercise 1 of X</span>
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse hidden" id="live-indicator"></span>
+                            <span class="font-mono text-sm font-bold text-gray-300" id="rest-timer">00:00</span>
+                        </div>
                     </div>
-                    <div class="border-x border-gray-800">
-                        <div class="text-gray-500 text-[10px] uppercase font-bold tracking-widest">Current Set</div>
-                        <div class="font-black text-accent text-xl leading-none mt-1" id="currentSetLabel">1</div>
-                    </div>
-                    <div>
-                        <div class="text-gray-500 text-[10px] uppercase font-bold tracking-widest">Target Reps</div>
-                        <div class="font-black text-white text-lg mt-1" id="targetRepsLabel">10</div>
+                    
+                    <div class="p-4 space-y-4">
+                        <h2 class="text-xl font-bold text-white" id="active-exercise-name">Exercise Name</h2>
+                        
+                        <!-- Targets Grid -->
+                        <div class="grid grid-cols-3 gap-2 text-center border-y border-gray-800 py-3">
+                            <div>
+                                <p class="text-[10px] text-gray-500 uppercase">Target Sets</p>
+                                <p class="text-lg font-bold text-white" id="target-sets">-</p>
+                            </div>
+                            <div class="border-x border-gray-800">
+                                <p class="text-[10px] text-gray-500 uppercase">Current Set</p>
+                                <p class="text-lg font-bold text-accent" id="current-set">1</p>
+                            </div>
+                            <div>
+                                <p class="text-[10px] text-gray-500 uppercase">Target Reps</p>
+                                <p class="text-lg font-bold text-white" id="target-reps">-</p>
+                            </div>
+                        </div>
+
+                        <!-- Last Log -->
+                        <div class="bg-[#121212] rounded-lg p-3 flex justify-between items-center text-sm">
+                            <span class="text-gray-400">Last Session:</span>
+                            <span class="font-mono font-bold text-gray-200" id="last-log-display">No data</span>
+                        </div>
+
+                        <!-- Log Form -->
+                        <div class="flex gap-2 pt-2 relative">
+                            <div id="session-lock-overlay" class="absolute inset-0 bg-surface/80 backdrop-blur-sm z-10 flex items-center justify-center rounded-lg">
+                                <span class="text-sm font-bold text-gray-300">Start Session to Log</span>
+                            </div>
+                            <div class="flex-1">
+                                <label class="block text-xs text-gray-500 mb-1">Weight (KG)</label>
+                                <input type="number" step="0.5" id="log-weight" class="w-full bg-[#121212] text-white font-bold text-center text-lg rounded-lg p-3 outline-none focus:ring-1 focus:ring-accent border border-gray-800 transition">
+                            </div>
+                            <div class="flex-1">
+                                <label class="block text-xs text-gray-500 mb-1">Reps Done</label>
+                                <input type="number" id="log-reps" class="w-full bg-[#121212] text-white font-bold text-center text-lg rounded-lg p-3 outline-none focus:ring-1 focus:ring-accent border border-gray-800 transition">
+                            </div>
+                            <div class="flex items-end">
+                                <button class="bg-accent hover:bg-accentHover text-white font-bold p-3 rounded-lg shadow-lg h-[52px] w-[52px] flex items-center justify-center transition-transform transform active:scale-90" onclick="App.Workout.logSet()">
+                                    ✓
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div class="bg-[#121212] rounded-lg p-3 mb-6 flex justify-between items-center border border-gray-800/50">
-                    <span class="text-xs text-gray-400">Last Session:</span>
-                    <span class="text-sm font-mono font-bold text-white" id="lastLogLabel">No data</span>
-                </div>
-
-                <div class="flex gap-3 mb-4 relative">
-                    <!-- Overlay to hide inputs before start -->
-                    <div id="startOverlay" class="absolute inset-0 bg-card/90 backdrop-blur-[2px] flex items-center justify-center z-10 rounded-lg">
-                        <span class="font-bold text-sm">Start Session to Log</span>
-                    </div>
-
-                    <div class="flex-1 bg-[#121212] border border-gray-700 rounded-lg overflow-hidden flex flex-col relative focus-within:border-gray-500 transition-colors">
-                        <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest absolute top-2 left-3">Weight</span>
-                        <input type="number" id="weightInput" step="0.5" class="w-full bg-transparent p-3 pt-6 pb-2 text-white font-black text-xl text-center focus:outline-none" placeholder="0">
-                    </div>
-                    <div class="flex-1 bg-[#121212] border border-gray-700 rounded-lg overflow-hidden flex flex-col relative focus-within:border-gray-500 transition-colors">
-                        <span class="text-[10px] font-bold text-gray-500 uppercase tracking-widest absolute top-2 left-3">Reps</span>
-                        <input type="number" id="repsInput" class="w-full bg-transparent p-3 pt-6 pb-2 text-white font-black text-xl text-center focus:outline-none" placeholder="0">
+                <!-- Session Sets List -->
+                <div class="mt-4">
+                    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-2 px-1">Today's Logs</h3>
+                    <div class="space-y-2" id="today-logs-container">
+                        <!-- Injected via JS -->
                     </div>
                 </div>
 
-                <button onclick="logSet()" id="logSetBtn" class="w-full bg-accent hover:bg-accentDark text-white font-black py-3.5 rounded-lg shadow-lg transition-colors uppercase tracking-widest text-sm flex justify-center items-center gap-2">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                    Log Set
+            </section>
+
+            <!-- TAB 2: BODYWEIGHT -->
+            <section id="tab-bodyweight" class="tab-content hidden space-y-4">
+                <div class="bg-surface rounded-xl p-4 shadow-lg border border-gray-800">
+                    <h2 class="text-lg font-bold text-white mb-4">Log Weight</h2>
+                    <div class="flex gap-2">
+                        <div class="flex-1">
+                            <input type="date" id="bw-date" class="w-full bg-[#121212] text-white text-sm rounded-lg p-3 outline-none border border-gray-800" onfocus="this.showPicker()">
+                        </div>
+                        <div class="flex-1">
+                            <input type="number" step="0.1" id="bw-weight" placeholder="KG" class="w-full bg-[#121212] text-white font-bold text-center rounded-lg p-3 outline-none border border-gray-800">
+                        </div>
+                        <button onclick="App.Bodyweight.saveLog()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 rounded-lg shadow-lg transition-transform active:scale-95">
+                            Save
+                        </button>
+                    </div>
+                </div>
+
+                <div class="space-y-3" id="bw-weekly-summary">
+                    <!-- Weekly summaries injected here -->
+                </div>
+            </section>
+
+            <!-- TAB 3: NUTRITION -->
+            <section id="tab-nutrition" class="tab-content hidden space-y-4">
+                <!-- Macro Summary Banner -->
+                <div class="bg-gradient-to-br from-surface to-gray-800 rounded-xl p-4 shadow-lg border border-gray-700 sticky top-0 z-10">
+                    <div class="flex justify-between items-center mb-4">
+                        <select id="nut-day-type" onchange="App.Nutrition.render()" class="bg-[#121212] text-white text-sm border border-gray-700 rounded-lg p-1.5 outline-none font-bold">
+                            <option value="training">Training Day</option>
+                            <option value="rest">Non-Training Day</option>
+                        </select>
+                        <select id="nut-filter" onchange="App.Nutrition.render()" class="bg-[#121212] text-gray-300 text-xs border border-gray-700 rounded-lg p-1.5 outline-none">
+                            <option value="all">All Meals</option>
+                            <option value="Breakfast">Breakfast</option>
+                            <option value="Pre-Workout">Pre-Workout</option>
+                            <option value="Post-Workout">Post-Workout</option>
+                            <option value="Lunch">Lunch</option>
+                            <option value="Dinner">Dinner</option>
+                            <option value="Snack">Snack</option>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-4 gap-1 text-center divide-x divide-gray-700">
+                        <div><p class="text-[9px] text-gray-400 uppercase">Kcal</p><p class="text-sm font-bold text-white" id="macro-total-kcal">0</p></div>
+                        <div><p class="text-[9px] text-gray-400 uppercase">Carbs</p><p class="text-sm font-bold text-blue-400" id="macro-total-c">0g</p></div>
+                        <div><p class="text-[9px] text-gray-400 uppercase">Protein</p><p class="text-sm font-bold text-red-400" id="macro-total-p">0g</p></div>
+                        <div><p class="text-[9px] text-gray-400 uppercase">Fats</p><p class="text-sm font-bold text-yellow-500" id="macro-total-f">0g</p></div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end px-1">
+                    <button onclick="App.Nutrition.resetDefaults()" class="text-xs text-gray-400 hover:text-white flex items-center gap-1 transition-colors">
+                        ↺ Reset Defaults
+                    </button>
+                </div>
+
+                <div id="meal-cards-container" class="space-y-4">
+                    <!-- Meals injected here -->
+                </div>
+                
+                <button onclick="UI.openModal('meal-builder-modal')" class="w-full py-3 border-2 border-dashed border-gray-700 rounded-xl text-gray-400 font-bold hover:border-gray-500 hover:text-gray-200 transition-colors flex items-center justify-center gap-2">
+                    ➕ Add Custom Meal
                 </button>
-                <button onclick="skipRest()" id="skipRestBtn" class="w-full bg-orange-600 hover:bg-orange-500 text-white font-black py-3.5 rounded-lg shadow-lg transition-colors uppercase tracking-widest text-sm hidden">
-                    Skip Rest
-                </button>
-                <button onclick="nextExercise()" id="nextExerciseBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-3.5 rounded-lg shadow-lg transition-colors uppercase tracking-widest text-sm hidden">
-                    ▶ Resume Next
-                </button>
-            </div>
+            </section>
+        </div>
+    </main>
 
-            <!-- Today's Logs -->
-            <div>
-                <h3 class="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Today's Logs</h3>
-                <div id="todayLogs" class="space-y-3"></div>
-            </div>
-        </main>
-
-        <!-- ============================== -->
-        <!-- VIEW 2: WEIGHT                 -->
-        <!-- ============================== -->
-        <main id="view-weight" class="hidden space-y-6 pb-6">
-            <h2 class="text-xl font-black tracking-tight text-white mb-2">Log Weight</h2>
-            <div class="bg-card p-4 rounded-xl border border-gray-800 shadow-sm flex gap-3">
-                <input type="date" id="bwDate" class="bg-[#121212] border border-gray-700 rounded-lg p-3 text-sm font-bold flex-1 focus:border-gray-500 focus:outline-none text-white">
-                <input type="number" id="bwWeight" step="0.1" placeholder="KG" class="bg-[#121212] border border-gray-700 rounded-lg p-3 text-sm font-bold w-24 text-center focus:border-gray-500 focus:outline-none text-white">
-                <button onclick="logBodyweight()" class="bg-blueBtn text-white px-5 rounded-lg font-bold shadow-md hover:bg-blue-600 transition-colors">Save</button>
-            </div>
-            
-            <div id="bwWeeklySummary" class="space-y-3"></div>
-
-            <h3 class="text-[11px] font-bold text-gray-500 uppercase tracking-widest mb-3 mt-8 border-b border-gray-800 pb-2">Log History</h3>
-            <div class="bg-card border border-gray-800 rounded-xl overflow-hidden shadow-sm">
-                <table class="w-full text-sm text-left">
-                    <tbody id="bwHistory" class="divide-y divide-gray-800 font-medium"></tbody>
-                </table>
-            </div>
-        </main>
-
-        <!-- ============================== -->
-        <!-- VIEW 3: MACROS                 -->
-        <!-- ============================== -->
-        <main id="view-macros" class="hidden space-y-6 pb-6">
-            
-            <div class="flex gap-3">
-                <select id="macroDayType" class="flex-1 bg-card border border-gray-800 rounded-lg p-3 text-sm font-bold text-white focus:outline-none shadow-sm" onchange="renderNutrition()">
-                    <option value="Training">Training Day</option>
-                    <option value="Rest">Rest Day</option>
-                </select>
-                <select id="macroCategory" class="flex-1 bg-card border border-gray-800 rounded-lg p-3 text-sm font-bold text-white focus:outline-none shadow-sm" onchange="renderNutrition()">
-                    <option value="ALL">All Meals</option>
-                    <option value="Breakfast">Breakfast</option>
-                    <option value="Pre-Workout">Pre-Workout</option>
-                    <option value="Post-Workout">Post-Workout</option>
-                    <option value="Lunch">Lunch</option>
-                    <option value="Dinner">Dinner</option>
-                    <option value="Snack">Snack</option>
-                </select>
-            </div>
-
-            <!-- Macro Summary Banner -->
-            <div class="bg-card border border-gray-800 rounded-xl p-4 flex justify-between text-center shadow-sm">
-                <div class="flex-1 border-r border-gray-800"><div class="text-gray-500 text-[9px] font-bold uppercase tracking-widest mb-1">Kcal</div><div id="macroKcal" class="font-black text-white text-lg">0</div></div>
-                <div class="flex-1 border-r border-gray-800"><div class="text-gray-500 text-[9px] font-bold uppercase tracking-widest mb-1">Carbs</div><div id="macroCarb" class="font-black text-blue-400 text-lg">0g</div></div>
-                <div class="flex-1 border-r border-gray-800"><div class="text-gray-500 text-[9px] font-bold uppercase tracking-widest mb-1">Protein</div><div id="macroPro" class="font-black text-accent text-lg">0g</div></div>
-                <div class="flex-1"><div class="text-gray-500 text-[9px] font-bold uppercase tracking-widest mb-1">Fats</div><div id="macroFat" class="font-black text-yellow-500 text-lg">0g</div></div>
-            </div>
-
-            <div class="flex justify-end -mt-3">
-                <button onclick="resetMacros()" class="text-[11px] text-gray-500 hover:text-gray-300 font-medium flex items-center gap-1 transition-colors">
-                    ↺ Reset Defaults
-                </button>
-            </div>
-
-            <div id="nutritionList" class="space-y-4"></div>
-            
-            <button onclick="addFoodModal()" class="w-full bg-transparent hover:bg-card/50 py-4 rounded-xl text-sm font-bold border-2 border-dashed border-gray-700 text-indigo-400 flex justify-center items-center gap-2 transition-colors">
-                <span class="text-xl leading-none">+</span> Add Custom Meal
+    <!-- BOTTOM NAV -->
+    <nav class="bg-[#121212] border-t border-gray-800 absolute bottom-0 w-full z-20 pb-safe">
+        <div class="max-w-md mx-auto flex justify-around">
+            <button onclick="UI.switchTab('workout')" id="btn-tab-workout" class="flex-1 py-4 text-xs font-bold text-gray-500 hover:text-gray-300 nav-active transition-colors flex flex-col items-center gap-1">
+                <span class="text-lg">🏋️</span> Tracker
             </button>
-        </main>
-    </div>
-
-    <!-- Bottom Navigation -->
-    <nav class="fixed bottom-0 w-full bg-[#1A1A1A] border-t border-gray-800 pb-safe z-50">
-        <div class="flex justify-around items-center max-w-lg mx-auto py-2">
-            <button onclick="switchTab('tracker')" id="nav-tracker" class="nav-btn nav-active flex flex-col items-center gap-1 p-2 w-full transition-colors">
-                <span class="text-xl">🏋️</span>
-                <span class="text-[10px] font-bold tracking-wide">Tracker</span>
+            <button onclick="UI.switchTab('bodyweight')" id="btn-tab-bodyweight" class="flex-1 py-4 text-xs font-bold text-gray-500 hover:text-gray-300 transition-colors flex flex-col items-center gap-1">
+                <span class="text-lg">⚖️</span> Weight
             </button>
-            <button onclick="switchTab('weight')" id="nav-weight" class="nav-btn nav-inactive flex flex-col items-center gap-1 p-2 w-full transition-colors">
-                <span class="text-xl">⚖️</span>
-                <span class="text-[10px] font-bold tracking-wide">Weight</span>
-            </button>
-            <button onclick="switchTab('macros')" id="nav-macros" class="nav-btn nav-inactive flex flex-col items-center gap-1 p-2 w-full transition-colors">
-                <span class="text-xl">🥩</span>
-                <span class="text-[10px] font-bold tracking-wide">Macros</span>
+            <button onclick="UI.switchTab('nutrition')" id="btn-tab-nutrition" class="flex-1 py-4 text-xs font-bold text-gray-500 hover:text-gray-300 transition-colors flex flex-col items-center gap-1">
+                <span class="text-lg">🥩</span> Macros
             </button>
         </div>
     </nav>
 
-    <!-- Modals -->
-
+    <!-- MODALS OVERLAYS -->
+    
     <!-- History Modal -->
-    <div id="historyModal" class="fixed inset-0 bg-black/90 backdrop-blur-sm z-[60] hidden flex-col">
-        <div class="bg-card p-4 flex justify-between items-center border-b border-gray-800">
-            <h2 class="text-lg font-black tracking-wide">📜 History</h2>
-            <button onclick="toggleModal('historyModal')" class="text-gray-400 hover:text-white p-2">✕</button>
-        </div>
-        <div class="p-4 flex-1 overflow-y-auto max-w-lg mx-auto w-full">
-            <select id="historyFilter" class="w-full bg-[#121212] border border-gray-700 rounded-lg p-3 mb-4 font-bold outline-none" onchange="renderHistory()">
-                <option value="ALL">All Routines</option>
-                <option value="UPPER BODY 1">UPPER BODY 1</option>
-                <option value="LOWER BODY 1">LOWER BODY 1</option>
-                <option value="UPPER BODY 2">UPPER BODY 2</option>
-                <option value="LOWER BODY 2">LOWER BODY 2</option>
-            </select>
-            <div id="historyList" class="space-y-3 pb-8"></div>
-        </div>
-    </div>
-
-    <!-- Exercise Modal -->
-    <div id="exerciseModal" class="fixed inset-0 bg-black/90 backdrop-blur-sm z-[60] hidden flex-col">
-        <div class="bg-card p-4 flex justify-between items-center border-b border-gray-800">
-            <h2 class="text-lg font-black tracking-wide">⚙️ Exercises</h2>
-            <button onclick="toggleModal('exerciseModal')" class="text-gray-400 hover:text-white p-2">✕</button>
-        </div>
-        <div class="p-4 flex-1 overflow-y-auto max-w-lg mx-auto w-full">
-            <select id="editRoutineSelector" class="w-full bg-[#121212] border border-gray-700 rounded-lg p-3 mb-4 font-bold outline-none" onchange="renderExerciseEditor()">
-                <option value="UPPER BODY 1">UPPER BODY 1</option>
-                <option value="LOWER BODY 1">LOWER BODY 1</option>
-                <option value="UPPER BODY 2">UPPER BODY 2</option>
-                <option value="LOWER BODY 2">LOWER BODY 2</option>
-            </select>
-            <div id="exerciseEditList" class="space-y-3 mb-6"></div>
-            <button onclick="addCustomExercise()" class="w-full bg-card hover:bg-cardhover py-3 rounded-lg text-sm font-bold border border-dashed border-gray-600 mb-3 transition-colors">➕ Add Exercise</button>
-            <button onclick="resetDefaultExercises()" class="w-full bg-red-900/10 text-accent py-3 rounded-lg text-sm font-bold border border-red-900/30 hover:bg-red-900/20 transition-colors mb-8">↺ Reset Defaults</button>
+    <div id="history-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex-col items-center justify-end sm:justify-center transition-opacity opacity-0">
+        <div class="bg-surface w-full max-w-md rounded-t-2xl sm:rounded-2xl h-[85vh] sm:h-[80vh] flex flex-col transform translate-y-full sm:translate-y-0 transition-transform">
+            <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-surface rounded-t-2xl">
+                <h3 class="text-lg font-bold text-white">📜 History</h3>
+                <button onclick="UI.closeModal('history-modal')" class="text-gray-400 p-2">✕</button>
+            </div>
+            <div class="p-3 border-b border-gray-800 flex gap-2 bg-[#121212]">
+                <select id="history-filter" class="w-full bg-surface text-white text-sm p-2 rounded border border-gray-700 outline-none" onchange="App.History.render()">
+                    <option value="all">ALL ROUTINES</option>
+                    <option value="upper1">UPPER BODY 1</option>
+                    <option value="lower1">LOWER BODY 1</option>
+                    <option value="upper2">UPPER BODY 2</option>
+                    <option value="lower2">LOWER BODY 2</option>
+                </select>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 space-y-3" id="history-list"></div>
         </div>
     </div>
 
-    <!-- App Logic -->
+    <!-- Exercises Modal -->
+    <div id="exercises-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex-col items-center justify-end sm:justify-center transition-opacity opacity-0">
+        <div class="bg-surface w-full max-w-md rounded-t-2xl sm:rounded-2xl h-[85vh] sm:h-[80vh] flex flex-col transform translate-y-full sm:translate-y-0 transition-transform">
+            <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-surface rounded-t-2xl">
+                <h3 class="text-lg font-bold text-white">⚙️ Customizer</h3>
+                <button onclick="UI.closeModal('exercises-modal')" class="text-gray-400 p-2">✕</button>
+            </div>
+            <div class="p-3 border-b border-gray-800 flex justify-between items-center bg-[#121212]">
+                <select id="config-routine-selector" class="bg-surface text-white text-sm p-2 rounded border border-gray-700 outline-none flex-1 mr-2" onchange="App.Customizer.render()">
+                    <option value="upper1">UPPER BODY 1</option>
+                    <option value="lower1">LOWER BODY 1</option>
+                    <option value="upper2">UPPER BODY 2</option>
+                    <option value="lower2">LOWER BODY 2</option>
+                </select>
+                <button onclick="App.Customizer.reset()" class="text-xs text-red-400">↺ Reset</button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 space-y-4" id="customizer-list"></div>
+            <div class="p-4 border-t border-gray-800">
+                <button onclick="App.Customizer.addTempExercise()" class="w-full bg-gray-700 hover:bg-gray-600 text-white font-bold py-3 rounded-xl transition">➕ Add Exercise</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Meal Builder Modal -->
+    <div id="meal-builder-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex-col items-center justify-end sm:justify-center transition-opacity opacity-0">
+        <div class="bg-surface w-full max-w-md rounded-t-2xl sm:rounded-2xl max-h-[90vh] flex flex-col transform translate-y-full sm:translate-y-0 transition-transform">
+            <div class="p-4 border-b border-gray-800 flex justify-between items-center bg-surface rounded-t-2xl shrink-0">
+                <h3 class="text-lg font-bold text-white">✏️ Meal Builder</h3>
+                <button onclick="UI.closeModal('meal-builder-modal')" class="text-gray-400 p-2">✕</button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 space-y-4 relative hide-scroll">
+                <div class="flex gap-2">
+                    <select id="mb-day" class="flex-1 bg-[#121212] text-white text-sm p-2 rounded border border-gray-700 outline-none">
+                        <option value="training">Training Day</option><option value="rest">Rest Day</option>
+                    </select>
+                    <select id="mb-cat" class="flex-1 bg-[#121212] text-white text-sm p-2 rounded border border-gray-700 outline-none">
+                        <option value="Breakfast">Breakfast</option><option value="Pre-Workout">Pre-Workout</option>
+                        <option value="Post-Workout">Post-Workout</option><option value="Lunch">Lunch</option>
+                        <option value="Dinner">Dinner</option><option value="Snack">Snack</option>
+                    </select>
+                </div>
+                
+                <div class="bg-[#121212] p-3 rounded-lg border border-gray-800">
+                    <h4 class="text-xs text-gray-400 uppercase font-bold mb-2">Add Ingredient</h4>
+                    <input type="text" id="mb-name" placeholder="Food Name" class="w-full bg-surface text-white text-sm p-2 rounded border border-gray-700 outline-none mb-2">
+                    <div class="grid grid-cols-4 gap-2 mb-2">
+                        <input type="number" id="mb-portion" placeholder="g" class="bg-surface text-white text-sm p-2 rounded border border-gray-700 outline-none text-center">
+                        <input type="number" id="mb-c" placeholder="C(g)" class="bg-surface text-white text-sm p-2 rounded border border-gray-700 outline-none text-center">
+                        <input type="number" id="mb-p" placeholder="P(g)" class="bg-surface text-white text-sm p-2 rounded border border-gray-700 outline-none text-center">
+                        <input type="number" id="mb-f" placeholder="F(g)" class="bg-surface text-white text-sm p-2 rounded border border-gray-700 outline-none text-center">
+                    </div>
+                    <div class="flex justify-between items-center mt-2">
+                        <span class="text-xs text-gray-400">Preview: <span id="mb-kcal-preview" class="font-bold text-white">0 kcal</span></span>
+                        <button onclick="App.Nutrition.addToBasket()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-3 py-1.5 rounded">➕ Add to Basket</button>
+                    </div>
+                </div>
+
+                <div class="pt-2 border-t border-gray-800">
+                    <h4 class="text-xs text-gray-400 uppercase font-bold mb-2">Basket</h4>
+                    <div id="mb-basket" class="space-y-2 min-h-[50px]"></div>
+                </div>
+            </div>
+            <div class="p-4 border-t border-gray-800 shrink-0 bg-surface">
+                <button onclick="App.Nutrition.saveMeal()" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 rounded-xl shadow-lg transition">Save Complete Meal</button>
+            </div>
+        </div>
+    </div>
+
     <script>
-        // Supabase Configuration
-        const SUPABASE_URL = 'https://mapvvhplnavtsewwzrcr.supabase.co/rest/v1';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hcHZ2aHBsbmF2dHNld3d6cmNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxNDE5NjIsImV4cCI6MjEwNTcxNzk2Mn0.-E1uFRp-hkZ3zeIfnEKFe490xqZu6dx3j5TZL83xCbM';
-        const HEADERS = {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${SUPABASE_KEY}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=representation'
+        /**
+         * FITNESS TRACKER CORE ENGINE
+         */
+        const Config = {
+            supaUrl: 'https://mapvvhplnavtsewwzrcr.supabase.co/rest/v1/',
+            supaKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hcHZ2aHBsbmF2dHNld3d6cmNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxNDE5NjIsImV4cCI6MjEwNTcxNzk2Mn0.-E1uFRp-hkZ3zeIfnEKFe490xqZu6dx3j5TZL83xCbM'
         };
 
-        const DEFAULT_ROUTINES = {
-            "UPPER BODY 1": [
-                {name: "Bench Press", sets: 4, reps: "10"},
-                {name: "Incline Bench Press", sets: 3, reps: "8-12"},
-                {name: "Lat Pull Down", sets: 4, reps: "10-12"}
-            ],
-            "LOWER BODY 1": [
-                {name: "Squats", sets: 4, reps: "6-8"},
-                {name: "Romanian Deadlift", sets: 3, reps: "8-10"}
-            ],
-            "UPPER BODY 2": [
-                {name: "Overhead Press", sets: 4, reps: "8-10"}
-            ],
-            "LOWER BODY 2": [
-                {name: "Deadlift", sets: 4, reps: "5-8"}
+        const DB = {
+            isOnline: navigator.onLine,
+            
+            init() {
+                window.addEventListener('online', () => this.setOnline(true));
+                window.addEventListener('offline', () => this.setOnline(false));
+                this.updateBadge();
+            },
+            
+            setOnline(status) {
+                this.isOnline = status;
+                this.updateBadge();
+            },
+            
+            updateBadge() {
+                const badge = document.getElementById('connection-badge');
+                if (this.isOnline) {
+                    badge.innerHTML = '⚡ Supabase';
+                    badge.className = 'px-2 py-1 rounded text-[10px] font-bold bg-emerald-900/50 text-emerald-400 border border-emerald-700/50 flex items-center gap-1 transition-colors';
+                } else {
+                    badge.innerHTML = '⚡ Local Mode';
+                    badge.className = 'px-2 py-1 rounded text-[10px] font-bold bg-amber-900/50 text-amber-500 border border-amber-700/50 flex items-center gap-1 transition-colors';
+                }
+            },
+            
+            // Abstract fetch with fallback to local storage
+            async request(table, method, body = null, selectQuery = '') {
+                const localKey = `trackfit_${table}`;
+                
+                // Optimistic Local Read/Write
+                let localData = JSON.parse(localStorage.getItem(localKey) || '[]');
+                
+                if (method === 'GET' && !this.isOnline) return localData;
+                
+                if (['POST', 'PATCH', 'DELETE'].includes(method)) {
+                    if (method === 'POST') localData.push({ id: Date.now().toString(), ...body });
+                    if (method === 'DELETE' && body?.id) localData = localData.filter(i => i.id !== body.id);
+                    // (Simplified local update logic for SPA constraints)
+                    localStorage.setItem(localKey, JSON.stringify(localData));
+                }
+
+                if (!this.isOnline) return localData;
+
+                try {
+                    const headers = {
+                        'apikey': Config.supaKey,
+                        'Authorization': `Bearer ${Config.supaKey}`,
+                        'Content-Type': 'application/json',
+                        'Prefer': 'return=representation'
+                    };
+                    
+                    let url = `${Config.supaUrl}${table}${selectQuery}`;
+                    let options = { method, headers };
+                    if (body) options.body = JSON.stringify(body);
+                    
+                    // For DELETE, Supabase REST requires query params (e.g. ?id=eq.123)
+                    if (method === 'DELETE' && body?.id) {
+                        url = `${Config.supaUrl}${table}?id=eq.${body.id}`;
+                        delete options.body;
+                    }
+
+                    const res = await fetch(url, options);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    
+                    const remoteData = method === 'DELETE' ? null : await res.json();
+                    
+                    // Sync GET
+                    if (method === 'GET') {
+                        localStorage.setItem(localKey, JSON.stringify(remoteData));
+                        return remoteData;
+                    }
+                    return localData; // Return locally updated array for immediate UI reflection
+
+                } catch (err) {
+                    console.warn(`Supabase fetch failed (${table}). Falling back to local storage.`, err);
+                    this.setOnline(false);
+                    return localData;
+                }
+            }
+        };
+
+        const Engine = {
+            worker: null,
+            wakeLock: null,
+            audioCtx: null,
+            bgAudio: null,
+            
+            init() {
+                this.setupWorker();
+                this.setupAudio();
+            },
+            
+            setupWorker() {
+                const workerCode = `
+                    let sInterval, rInterval, sTime = 0, rTime = 0, setTime = 0;
+                    onmessage = function(e) {
+                        const cmd = e.data.cmd;
+                        if (cmd === 'START_SESSION') {
+                            sTime = e.data.time || 0;
+                            setTime = e.data.setTime || 0;
+                            if(sInterval) clearInterval(sInterval);
+                            sInterval = setInterval(() => {
+                                sTime++;
+                                if(rTime <= 0) setTime++;
+                                postMessage({ type: 'TICK', sTime, rTime, setTime });
+                            }, 1000);
+                        }
+                        if (cmd === 'STOP_SESSION') {
+                            clearInterval(sInterval); clearInterval(rInterval);
+                        }
+                        if (cmd === 'START_REST') {
+                            rTime = e.data.duration;
+                            setTime = 0;
+                            if(rInterval) clearInterval(rInterval);
+                            rInterval = setInterval(() => {
+                                rTime--;
+                                postMessage({ type: 'TICK', sTime, rTime, setTime });
+                                if (rTime <= 0) {
+                                    clearInterval(rInterval);
+                                    setTime = 0;
+                                    postMessage({ type: 'REST_COMPLETE' });
+                                }
+                            }, 1000);
+                        }
+                        if (cmd === 'STOP_REST') {
+                            clearInterval(rInterval); rTime = 0; setTime = 0;
+                            postMessage({ type: 'TICK', sTime, rTime, setTime });
+                        }
+                        if (cmd === 'RESET_SET_TIME') {
+                            setTime = 0;
+                            postMessage({ type: 'TICK', sTime, rTime, setTime });
+                        }
+                    }
+                `;
+                const blob = new Blob([workerCode], { type: 'application/javascript' });
+                this.worker = new Worker(URL.createObjectURL(blob));
+                
+                this.worker.onmessage = (e) => {
+                    if (e.data.type === 'TICK') {
+                        App.Workout.updateTimers(e.data.sTime, e.data.rTime, e.data.setTime);
+                    } else if (e.data.type === 'REST_COMPLETE') {
+                        this.triggerAlerts();
+                        App.Workout.handleRestComplete();
+                    }
+                };
+            },
+            
+            setupAudio() {
+                // Shortest valid silent base64 mp3 to trick OS into keeping active
+                const silentMp3 = "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU2LjM2LjEwMAAAAAAAAAAAAAAA//OEAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6v////////////////////////////////8AAAAATGF2YzU2LjQxAAAAAAAAAAAAAAAAJAAAAAAAAAAAASDs90hvAAAAAAAAAAAAAAAAAAAA//MUZAAAAAGkAAAAAAAAA0gAAAAATEFN//MUZAMAAAGkAAAAAAAAA0gAAAAARTMu//MUZAYAAAGkAAAAAAAAA0gAAAAA//MUZAkAAAGkAAAAAAAAA0gAAAAA";
+                this.bgAudio = new Audio(silentMp3);
+                this.bgAudio.loop = true;
+                
+                window.AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (window.AudioContext) {
+                    this.audioCtx = new AudioContext();
+                }
+            },
+            
+            async requestWakeLock() {
+                if ('wakeLock' in navigator) {
+                    try {
+                        this.wakeLock = await navigator.wakeLock.request('screen');
+                        this.wakeLock.addEventListener('release', () => console.log('Wake Lock Released'));
+                    } catch (err) { console.warn('Wake Lock failed', err); }
+                }
+            },
+            
+            releaseWakeLock() {
+                if (this.wakeLock) {
+                    this.wakeLock.release().then(() => this.wakeLock = null);
+                }
+            },
+
+            playBeep() {
+                if (!this.audioCtx) return;
+                if (this.audioCtx.state === 'suspended') this.audioCtx.resume();
+                
+                const playTone = (freq, time, dur) => {
+                    const osc = this.audioCtx.createOscillator();
+                    const gain = this.audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, this.audioCtx.currentTime + time);
+                    gain.gain.setValueAtTime(1, this.audioCtx.currentTime + time);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.audioCtx.currentTime + time + dur);
+                    osc.connect(gain);
+                    gain.connect(this.audioCtx.destination);
+                    osc.start(this.audioCtx.currentTime + time);
+                    osc.stop(this.audioCtx.currentTime + time + dur);
+                };
+                
+                playTone(440, 0, 0.2);
+                playTone(660, 0.2, 0.4);
+            },
+            
+            triggerAlerts() {
+                this.playBeep();
+                if (navigator.vibrate) navigator.vibrate([200, 100, 300]);
+                if (Notification.permission === 'granted') {
+                    new Notification("Rest Complete!", { body: "Time for your next set." });
+                }
+            }
+        };
+
+        const DefaultData = {
+            routines: {
+                upper1: [
+                    { id: 'u1-1', name: 'Barbell Bench Press', sets: 4, reps: '5-8' },
+                    { id: 'u1-2', name: 'Barbell Row', sets: 4, reps: '6-8' },
+                    { id: 'u1-3', name: 'Overhead Press', sets: 3, reps: '8-10' },
+                    { id: 'u1-4', name: 'Lat Pulldown', sets: 3, reps: '10-12' },
+                    { id: 'u1-5', name: 'Bicep Curls', sets: 3, reps: '12-15' },
+                    { id: 'u1-6', name: 'Tricep Extensions', sets: 3, reps: '12-15' }
+                ],
+                lower1: [
+                    { id: 'l1-1', name: 'Barbell Squat', sets: 4, reps: '5-8' },
+                    { id: 'l1-2', name: 'Romanian Deadlift', sets: 4, reps: '8-10' },
+                    { id: 'l1-3', name: 'Leg Press', sets: 3, reps: '10-12' },
+                    { id: 'l1-4', name: 'Leg Curls', sets: 3, reps: '12-15' },
+                    { id: 'l1-5', name: 'Calf Raises', sets: 4, reps: '15-20' }
+                ],
+                upper2: [
+                    { id: 'u2-1', name: 'Incline DB Press', sets: 4, reps: '8-10' },
+                    { id: 'u2-2', name: 'Pull-ups', sets: 4, reps: 'AMRAP' },
+                    { id: 'u2-3', name: 'Seated DB Press', sets: 3, reps: '8-12' },
+                    { id: 'u2-4', name: 'Cable Rows', sets: 3, reps: '10-12' },
+                    { id: 'u2-5', name: 'Hammer Curls', sets: 3, reps: '12-15' },
+                    { id: 'u2-6', name: 'Skullcrushers', sets: 3, reps: '10-12' }
+                ],
+                lower2: [
+                    { id: 'l2-1', name: 'Deadlift', sets: 3, reps: '5' },
+                    { id: 'l2-2', name: 'Front Squat', sets: 3, reps: '8-10' },
+                    { id: 'l2-3', name: 'Bulgarian Split Squat', sets: 3, reps: '10-12' },
+                    { id: 'l2-4', name: 'Leg Extensions', sets: 3, reps: '12-15' },
+                    { id: 'l2-5', name: 'Seated Calf Raises', sets: 4, reps: '15-20' }
+                ]
+            },
+            nutrition: [
+                { id: 'n1', type: 'training', cat: 'Breakfast', name: 'Oats & Whey', items: [{name: 'Oats', portion: 80, c: 54, p: 10, f: 5}, {name: 'Whey', portion: 30, c: 2, p: 24, f: 1}] },
+                { id: 'n2', type: 'training', cat: 'Post-Workout', name: 'Chicken & Rice', items: [{name: 'Chicken Breast', portion: 200, c: 0, p: 46, f: 2}, {name: 'White Rice', portion: 250, c: 70, p: 6, f: 1}] }
             ]
         };
 
-        let isOnline = navigator.onLine;
-        let activeRoutine = [];
-        let currentExIndex = 0;
-        let currentSet = 1;
-        let sessionActive = false;
-        
-        let sessionStartTime = 0;
-        let setStartTime = 0;
-        let restEndTime = 0;
-        let isResting = false;
-        
-        let logs = JSON.parse(localStorage.getItem('logs') || '[]');
-        let bodyweightData = JSON.parse(localStorage.getItem('bodyweightData') || '[]');
-        let customExercises = JSON.parse(localStorage.getItem('customExercises') || 'null');
-        let nutritionData = JSON.parse(localStorage.getItem('nutritionData') || '[]');
-        
-        let wakeLock = null;
-        let audioCtx = null;
-        let silentAudio = null;
-
-        const workerBlob = new Blob([`
-            let timer;
-            self.onmessage = function(e) {
-                if (e.data === 'start') {
-                    if (timer) clearInterval(timer);
-                    timer = setInterval(() => self.postMessage('tick'), 1000);
-                } else if (e.data === 'stop') {
-                    clearInterval(timer);
-                }
-            };
-        `], { type: 'application/javascript' });
-        const worker = new Worker(URL.createObjectURL(workerBlob));
-        worker.onmessage = handleTick;
-
-        window.addEventListener('online', () => { isOnline = true; updateBadge(); fetchSupabaseData(); });
-        window.addEventListener('offline', () => { isOnline = false; updateBadge(); });
-
-        document.getElementById('bwDate').valueAsDate = new Date();
-
-        if (!customExercises) {
-            customExercises = JSON.parse(JSON.stringify(DEFAULT_ROUTINES));
-            localStorage.setItem('customExercises', JSON.stringify(customExercises));
-        }
-
-        // INIT
-        restoreSessionState();
-        loadRoutine();
-        updateBadge();
-        fetchSupabaseData();
-
-        // ================= NAVIGATION =================
-        function switchTab(tabId) {
-            ['tracker', 'weight', 'macros'].forEach(id => {
-                document.getElementById(`view-${id}`).classList.add('hidden');
-                const navBtn = document.getElementById(`nav-${id}`);
-                navBtn.classList.remove('nav-active');
-                navBtn.classList.add('nav-inactive');
-            });
-            
-            document.getElementById(`view-${tabId}`).classList.remove('hidden');
-            const activeBtn = document.getElementById(`nav-${tabId}`);
-            activeBtn.classList.remove('nav-inactive');
-            activeBtn.classList.add('nav-active');
-
-            if(tabId === 'weight') renderBodyweight();
-            if(tabId === 'macros') renderNutrition();
-        }
-
-        function updateBadge() {
-            const badge = document.getElementById('connectionBadge');
-            if (isOnline) {
-                badge.innerHTML = '⚡ Online';
-                badge.className = 'text-[10px] font-bold px-2.5 py-1 rounded-md bg-green-900/30 text-green-400 border border-green-900/50 flex items-center gap-1';
-            } else {
-                badge.innerHTML = '⚡ Local Mode';
-                badge.className = 'text-[10px] font-bold px-2.5 py-1 rounded-md bg-orange-900/30 text-orange-400 border border-orange-900/50 flex items-center gap-1';
-            }
-        }
-
-        // ================= WORKOUT MODULE =================
-        function loadRoutine() {
-            const day = document.getElementById('routineSelector').value;
-            activeRoutine = customExercises[day] || DEFAULT_ROUTINES[day];
-            renderTabs();
-            renderActiveExercise();
-            renderTodayLogs();
-            if (sessionActive) saveSessionState();
-        }
-
-        function renderTabs() {
-            const container = document.getElementById('exerciseTabs');
-            container.innerHTML = activeRoutine.map((ex, idx) => `
-                <button onclick="jumpToExercise(${idx})" class="whitespace-nowrap px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-colors ${idx === currentExIndex ? 'tab-active' : 'tab-inactive'}">
-                    ${idx + 1}. ${ex.name}
-                </button>
-            `).join('');
-        }
-
-        function jumpToExercise(idx) {
-            if (!sessionActive) return;
-            currentExIndex = idx;
-            currentSet = 1;
-            isResting = false;
-            setStartTime = Date.now();
-            renderTabs();
-            renderActiveExercise();
-            saveSessionState();
-            
-            const tabs = document.getElementById('exerciseTabs').children;
-            if(tabs[idx]) tabs[idx].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-        }
-
-        function renderActiveExercise() {
-            if (activeRoutine.length === 0) return;
-            const ex = activeRoutine[currentExIndex];
-            
-            document.getElementById('progressBadge').innerText = `Exercise ${currentExIndex + 1} of ${activeRoutine.length}`;
-            document.getElementById('exerciseName').innerText = ex.name;
-            document.getElementById('targetSetsReps').innerText = ex.sets;
-            document.getElementById('targetRepsLabel').innerText = ex.reps;
-            document.getElementById('currentSetLabel').innerText = currentSet;
-            
-            const pastLogs = logs.filter(l => l.exercise === ex.name && l.routine === document.getElementById('routineSelector').value);
-            if (pastLogs.length > 0) {
-                pastLogs.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-                const lastSessionDate = pastLogs[0].created_at.split('T')[0];
-                const lastSessionLogs = pastLogs.filter(l => l.created_at.startsWith(lastSessionDate));
-                const weights = lastSessionLogs.map(l => parseFloat(l.weight)).filter(w => !isNaN(w) && w > 0);
-                const minReps = Math.min(...lastSessionLogs.map(l => parseInt(l.reps)));
+        const UI = {
+            switchTab(tabId) {
+                document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+                document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active-tab'));
                 
-                if (weights.length > 0) {
-                    const maxWeight = Math.max(...weights);
-                    document.getElementById('lastLogLabel').innerText = `${maxWeight}kg × ${minReps}`;
-                    if(!document.getElementById('weightInput').value) document.getElementById('weightInput').value = maxWeight;
+                document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+                document.getElementById(`tab-${tabId}`).classList.add('active-tab');
+                
+                document.querySelectorAll('nav button').forEach(el => el.classList.remove('nav-active'));
+                document.getElementById(`btn-tab-${tabId}`).classList.add('nav-active');
+                
+                // Specific renders
+                if (tabId === 'bodyweight') App.Bodyweight.render();
+                if (tabId === 'nutrition') App.Nutrition.render();
+            },
+            
+            openModal(id) {
+                const modal = document.getElementById(id);
+                modal.classList.remove('hidden');
+                setTimeout(() => {
+                    modal.classList.remove('opacity-0');
+                    modal.children[0].classList.remove('translate-y-full', 'sm:translate-y-full', 'scale-95');
+                }, 10);
+                
+                if (id === 'history-modal') App.History.render();
+                if (id === 'exercises-modal') App.Customizer.render();
+            },
+            
+            closeModal(id) {
+                const modal = document.getElementById(id);
+                modal.classList.add('opacity-0');
+                modal.children[0].classList.add('translate-y-full', 'sm:translate-y-full', 'scale-95');
+                setTimeout(() => modal.classList.add('hidden'), 200);
+            },
+
+            formatTime(seconds) {
+                if (seconds <= 0) return "00:00";
+                const h = Math.floor(seconds / 3600);
+                const m = Math.floor((seconds % 3600) / 60);
+                const s = seconds % 60;
+                if (h > 0) return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+                return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            }
+        };
+
+        const App = {
+            State: {
+                routines: {},
+                activeRoutine: 'upper1',
+                activeExIndex: 0,
+                isSessionActive: false,
+                sessionTime: 0,
+                restTime: 0,
+                setTime: 0,
+                currentSet: 1,
+                logs: [],
+                dateStr: new Date().toISOString().split('T')[0]
+            },
+
+            async init() {
+                DB.init();
+                Engine.init();
+                
+                // Ask notification perm passively
+                if ("Notification" in window && Notification.permission !== "granted" && Notification.permission !== "denied") {
+                    Notification.requestPermission();
+                }
+
+                // Load config routines or defaults
+                let storedRoutines = localStorage.getItem('trackfit_routines');
+                if (storedRoutines) {
+                    this.State.routines = JSON.parse(storedRoutines);
                 } else {
-                    document.getElementById('lastLogLabel').innerText = `BW × ${minReps}`;
-                }
-            } else {
-                document.getElementById('lastLogLabel').innerText = 'No data';
-            }
-
-            const isDone = currentSet > ex.sets;
-            document.getElementById('logSetBtn').classList.toggle('hidden', isDone || isResting);
-            document.getElementById('skipRestBtn').classList.toggle('hidden', !isResting);
-            document.getElementById('nextExerciseBtn').classList.toggle('hidden', !isDone);
-        }
-
-        async function logSet() {
-            if (!sessionActive) return;
-            const w = document.getElementById('weightInput').value || 0;
-            const r = document.getElementById('repsInput').value;
-            if (!r) return alert('Enter reps performed.');
-
-            const ex = activeRoutine[currentExIndex];
-            const setDuration = formatTime(Math.floor((Date.now() - setStartTime) / 1000));
-            
-            const logEntry = {
-                id: crypto.randomUUID(),
-                created_at: new Date().toISOString(),
-                routine: document.getElementById('routineSelector').value,
-                exercise: ex.name,
-                set_number: currentSet,
-                weight: w,
-                reps: r,
-                duration: setDuration
-            };
-
-            logs.push(logEntry);
-            localStorage.setItem('logs', JSON.stringify(logs));
-            renderTodayLogs();
-
-            if (isOnline) {
-                fetch(`${SUPABASE_URL}/workout_logs`, { method: 'POST', headers: HEADERS, body: JSON.stringify(logEntry) }).catch(console.error);
-            }
-
-            isResting = true;
-            const restTarget = ex.sets >= 4 ? 90 : 60;
-            restEndTime = Date.now() + (restTarget * 1000);
-            
-            document.getElementById('repsInput').value = '';
-            renderActiveExercise();
-            saveSessionState();
-        }
-
-        function skipRest() {
-            isResting = false;
-            setStartTime = Date.now();
-            currentSet++;
-            renderActiveExercise();
-            saveSessionState();
-        }
-
-        function nextExercise() {
-            if (currentExIndex < activeRoutine.length - 1) {
-                jumpToExercise(currentExIndex + 1);
-            } else {
-                alert('Routine Complete!');
-                toggleSession();
-            }
-        }
-
-        function renderTodayLogs() {
-            const today = new Date().toISOString().split('T')[0];
-            const routine = document.getElementById('routineSelector').value;
-            const todayLogs = logs.filter(l => l.created_at.startsWith(today) && l.routine === routine);
-            
-            const container = document.getElementById('todayLogs');
-            container.innerHTML = '';
-            
-            const grouped = {};
-            todayLogs.forEach(l => {
-                if(!grouped[l.exercise]) grouped[l.exercise] = [];
-                grouped[l.exercise].push(l);
-            });
-
-            for (const [exName, exLogs] of Object.entries(grouped)) {
-                let html = `<div class="bg-card border border-gray-800 rounded-lg overflow-hidden shadow-sm">
-                    <div class="px-4 py-3 border-b border-gray-800 bg-[#1A1A1A]">
-                        <h4 class="font-bold text-white text-xs uppercase tracking-widest">${exName}</h4>
-                    </div>
-                    <div class="divide-y divide-gray-800">`;
-                exLogs.forEach(l => {
-                    html += `<div class="flex justify-between items-center px-4 py-3 bg-[#121212] text-sm text-gray-400">
-                        <span class="w-16">Set ${l.set_number}</span>
-                        <span class="font-bold text-white">${l.weight}kg</span>
-                        <span class="font-bold text-white">${l.reps} reps</span>
-                        <div class="flex items-center gap-4">
-                            <span class="text-[10px] font-mono flex items-center gap-1">⏱ ${l.duration}</span>
-                            <button onclick="deleteLog('${l.id}')" class="text-accent hover:text-red-400 font-bold text-lg leading-none">✕</button>
-                        </div>
-                    </div>`;
-                });
-                html += `</div></div>`;
-                container.innerHTML += html;
-            }
-        }
-
-        async function deleteLog(id) {
-            logs = logs.filter(l => l.id !== id);
-            localStorage.setItem('logs', JSON.stringify(logs));
-            renderTodayLogs();
-            if (isOnline) fetch(`${SUPABASE_URL}/workout_logs?id=eq.${id}`, { method: 'DELETE', headers: HEADERS }).catch(console.error);
-        }
-
-        // ================= TIMER & WORKERS =================
-        async function toggleSession() {
-            const btn = document.getElementById('sessionToggle');
-            const overlay = document.getElementById('startOverlay');
-            
-            if (!sessionActive) {
-                sessionActive = true;
-                sessionStartTime = Date.now();
-                setStartTime = Date.now();
-                isResting = false;
-                currentSet = 1;
-                
-                btn.innerHTML = '⏹ STOP';
-                btn.className = 'bg-gray-700 hover:bg-gray-600 text-white font-bold py-2.5 px-6 rounded-lg transition-colors shadow-md uppercase tracking-wide text-sm';
-                overlay.classList.add('hidden');
-                
-                worker.postMessage('start');
-                requestWakeLock();
-                initAudio();
-                
-                document.getElementById('routineSelector').disabled = true;
-                renderActiveExercise();
-                saveSessionState();
-            } else {
-                sessionActive = false;
-                btn.innerHTML = '▶ Start Session';
-                btn.className = 'bg-[#22C55E] hover:bg-green-500 text-white font-bold py-2.5 px-5 rounded-lg transition-colors shadow-md uppercase tracking-wide text-sm flex items-center gap-1';
-                overlay.classList.remove('hidden');
-                
-                worker.postMessage('stop');
-                if (wakeLock) wakeLock.release().then(() => wakeLock = null);
-                if (silentAudio) { silentAudio.pause(); silentAudio = null; }
-                
-                document.getElementById('routineSelector').disabled = false;
-                localStorage.removeItem('activeSessionState');
-                document.getElementById('sessionTimer').innerText = '00:00:00';
-                document.getElementById('activeTimer').innerText = '00:00';
-            }
-        }
-
-        function handleTick() {
-            if (!sessionActive) return;
-            
-            const sessionElapsed = Math.floor((Date.now() - sessionStartTime) / 1000);
-            document.getElementById('sessionTimer').innerText = formatTime(sessionElapsed, true);
-            
-            const activeTimerEl = document.getElementById('activeTimer');
-            
-            if (isResting) {
-                const remaining = Math.ceil((restEndTime - Date.now()) / 1000);
-                if (remaining <= 0) {
-                    isResting = false;
-                    setStartTime = Date.now();
-                    currentSet++;
-                    renderActiveExercise();
-                    playBeep();
-                    if(navigator.vibrate) navigator.vibrate([200, 100, 200]);
-                    saveSessionState();
-                } else {
-                    activeTimerEl.innerText = formatTime(remaining);
-                    activeTimerEl.className = 'text-sm font-black font-mono text-orange-400';
-                }
-            } else {
-                const setElapsed = Math.floor((Date.now() - setStartTime) / 1000);
-                activeTimerEl.innerText = formatTime(setElapsed);
-                activeTimerEl.className = 'text-sm font-black font-mono text-gray-300';
-            }
-            
-            if (sessionElapsed % 5 === 0) saveSessionState();
-        }
-
-        function saveSessionState() {
-            if (!sessionActive) return;
-            localStorage.setItem('activeSessionState', JSON.stringify({
-                routine: document.getElementById('routineSelector').value,
-                sessionStartTime, setStartTime, restEndTime, isResting, currentExIndex, currentSet
-            }));
-        }
-
-        function restoreSessionState() {
-            const state = JSON.parse(localStorage.getItem('activeSessionState'));
-            if (state && (Date.now() - state.sessionStartTime) < 12 * 60 * 60 * 1000) { 
-                document.getElementById('routineSelector').value = state.routine;
-                sessionStartTime = state.sessionStartTime;
-                setStartTime = state.setStartTime;
-                restEndTime = state.restEndTime;
-                isResting = state.isResting;
-                currentExIndex = state.currentExIndex;
-                currentSet = state.currentSet;
-                
-                document.getElementById('startOverlay').classList.add('hidden');
-                toggleSession();
-                renderActiveExercise();
-            } else {
-                localStorage.removeItem('activeSessionState');
-            }
-        }
-
-        function formatTime(s, includeHours = false) {
-            if(s < 0) s = 0;
-            const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), secs = s % 60;
-            const ms = `${m.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-            return includeHours ? `${h.toString().padStart(2, '0')}:${ms}` : ms;
-        }
-
-        async function requestWakeLock() {
-            try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) {}
-        }
-
-        function initAudio() {
-            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            if (!silentAudio) {
-                silentAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
-                silentAudio.loop = true;
-                silentAudio.play().catch(()=>{});
-            }
-        }
-
-        function playBeep() {
-            if (!audioCtx) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.frequency.setValueAtTime(800, audioCtx.currentTime);
-            osc.frequency.setValueAtTime(1200, audioCtx.currentTime + 0.1);
-            gain.gain.setValueAtTime(1, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.start(); osc.stop(audioCtx.currentTime + 0.5);
-        }
-
-        // ================= BODYWEIGHT MODULE =================
-        async function logBodyweight() {
-            const date = document.getElementById('bwDate').value;
-            const weight = parseFloat(document.getElementById('bwWeight').value);
-            if (!date || !weight) return;
-
-            const entry = { id: crypto.randomUUID(), date, weight };
-            bodyweightData.push(entry);
-            localStorage.setItem('bodyweightData', JSON.stringify(bodyweightData));
-            renderBodyweight();
-            document.getElementById('bwWeight').value = '';
-
-            if (isOnline) fetch(`${SUPABASE_URL}/bodyweight_logs`, { method: 'POST', headers: HEADERS, body: JSON.stringify(entry) }).catch(console.error);
-        }
-
-        function renderBodyweight() {
-            bodyweightData.sort((a,b) => new Date(b.date) - new Date(a.date));
-            document.getElementById('bwHistory').innerHTML = bodyweightData.map(b => `
-                <tr class="hover:bg-gray-800/30">
-                    <td class="px-4 py-4 border-b border-gray-800 text-gray-400 text-xs">${b.date}</td>
-                    <td class="px-4 py-4 border-b border-gray-800 text-white font-bold">${b.weight} kg</td>
-                    <td class="px-4 py-4 border-b border-gray-800 text-right"><button onclick="deleteBw('${b.id}')" class="text-gray-600 hover:text-accent font-black">✕</button></td>
-                </tr>
-            `).join('');
-
-            const weeks = {};
-            bodyweightData.forEach(entry => {
-                const d = new Date(entry.date);
-                const day = d.getDay();
-                const diff = d.getDate() - day + (day === 0 ? 0 : 7);
-                const sunday = new Date(d.setDate(diff));
-                const key = sunday.toISOString().split('T')[0];
-                if(!weeks[key]) weeks[key] = [];
-                weeks[key].push(entry.weight);
-            });
-
-            const sortedWeeks = Object.keys(weeks).sort((a,b) => new Date(b) - new Date(a));
-            let html = '';
-            for (let i=0; i<sortedWeeks.length; i++) {
-                const w = sortedWeeks[i];
-                const avg = (weeks[w].reduce((a,b)=>a+b,0) / weeks[w].length).toFixed(1);
-                
-                let delta = `<span class="text-gray-500 font-medium text-xs flex items-center gap-1">➡️ Baseline</span>`;
-                if (i < sortedWeeks.length - 1) {
-                    const prevAvg = (weeks[sortedWeeks[i+1]].reduce((a,b)=>a+b,0) / weeks[sortedWeeks[i+1]].length).toFixed(1);
-                    const diff = (avg - prevAvg).toFixed(1);
-                    if (diff > 0) delta = `<span class="text-red-400 font-bold text-xs flex items-center gap-1">🔺 +${diff} kg</span>`;
-                    else if (diff < 0) delta = `<span class="text-green-400 font-bold text-xs flex items-center gap-1">🔻 ${diff} kg</span>`;
-                    else delta = `<span class="text-gray-500 font-medium text-xs flex items-center gap-1">➡️ 0.0 kg</span>`;
+                    this.State.routines = DefaultData.routines;
+                    localStorage.setItem('trackfit_routines', JSON.stringify(this.State.routines));
                 }
 
-                html += `<div class="bg-card border border-gray-800 rounded-xl p-4 flex justify-between items-center shadow-sm">
-                    <div><div class="text-[10px] text-gray-500 uppercase font-bold tracking-widest mb-1">Week ending ${w}</div>
-                    <div class="font-black text-white text-xl">${avg} kg</div></div>
-                    <div>${delta}</div>
-                </div>`;
-            }
-            document.getElementById('bwWeeklySummary').innerHTML = html || '<div class="text-sm text-gray-500">No data logged yet.</div>';
-        }
+                // Load today's logs
+                this.State.logs = await DB.request('workout_logs', 'GET', null, `?date=eq.${this.State.dateStr}`) || [];
 
-        function deleteBw(id) {
-            bodyweightData = bodyweightData.filter(b => b.id !== id);
-            localStorage.setItem('bodyweightData', JSON.stringify(bodyweightData));
-            renderBodyweight();
-        }
+                this.Workout.recoverSession();
+                this.Workout.renderPills();
+                this.Workout.renderActiveExercise();
+                this.Workout.renderTodayLogs();
+            },
 
-        // ================= NUTRITION MODULE =================
-        function renderNutrition() {
-            const dayType = document.getElementById('macroDayType').value;
-            const category = document.getElementById('macroCategory').value;
-            
-            let filtered = nutritionData.filter(n => n.dayType === dayType);
-            if (category !== 'ALL') filtered = filtered.filter(n => n.category === category);
+            Workout: {
+                saveState() {
+                    if (!App.State.isSessionActive) {
+                        localStorage.removeItem('trackfit_session');
+                        return;
+                    }
+                    localStorage.setItem('trackfit_session', JSON.stringify({
+                        routine: App.State.activeRoutine,
+                        exIndex: App.State.activeExIndex,
+                        set: App.State.currentSet,
+                        time: App.State.sessionTime,
+                        rest: App.State.restTime,
+                        setTime: App.State.setTime
+                    }));
+                },
 
-            // Group by category to match mockup meal cards
-            const grouped = {};
-            filtered.forEach(n => {
-                if(!grouped[n.category]) grouped[n.category] = [];
-                grouped[n.category].push(n);
-            });
+                recoverSession() {
+                    const saved = JSON.parse(localStorage.getItem('trackfit_session'));
+                    if (saved) {
+                        App.State.isSessionActive = true;
+                        App.State.activeRoutine = saved.routine;
+                        document.getElementById('routine-selector').value = saved.routine;
+                        App.State.activeExIndex = saved.exIndex;
+                        App.State.currentSet = saved.set;
+                        
+                        Engine.worker.postMessage({ cmd: 'START_SESSION', time: saved.time, setTime: saved.setTime || 0 });
+                        if (saved.rest > 0) {
+                            Engine.worker.postMessage({ cmd: 'START_REST', duration: saved.rest });
+                        }
+                        
+                        this.updateUIForSession(true);
+                    }
+                },
 
-            let html = '';
-            for(const [catName, items] of Object.entries(grouped)) {
-                let mealK = 0, mealP = 0, mealC = 0, mealF = 0;
-                items.forEach(i => { mealK+=i.kcal; mealP+=i.pro; mealC+=i.carb; mealF+=i.fat; });
+                changeRoutine() {
+                    if (App.State.isSessionActive) {
+                        alert("Stop current session to change routine.");
+                        document.getElementById('routine-selector').value = App.State.activeRoutine;
+                        return;
+                    }
+                    App.State.activeRoutine = document.getElementById('routine-selector').value;
+                    App.State.activeExIndex = 0;
+                    App.State.currentSet = 1;
+                    this.renderPills();
+                    this.renderActiveExercise();
+                },
+
+                toggleSession() {
+                    App.State.isSessionActive = !App.State.isSessionActive;
+                    this.updateUIForSession(App.State.isSessionActive);
+
+                    if (App.State.isSessionActive) {
+                        Engine.bgAudio.play().catch(()=>{}); // Mobile requirement
+                        Engine.requestWakeLock();
+                        Engine.worker.postMessage({ cmd: 'START_SESSION', time: 0, setTime: 0 });
+                    } else {
+                        Engine.bgAudio.pause();
+                        Engine.releaseWakeLock();
+                        Engine.worker.postMessage({ cmd: 'STOP_SESSION' });
+                        App.State.sessionTime = 0;
+                        App.State.restTime = 0;
+                        App.State.setTime = 0;
+                        this.updateTimers(0, 0, 0);
+                    }
+                    this.saveState();
+                },
+
+                updateUIForSession(isActive) {
+                    const btn = document.getElementById('session-toggle');
+                    const overlay = document.getElementById('session-lock-overlay');
+                    const liveInd = document.getElementById('live-indicator');
+                    
+                    if (isActive) {
+                        btn.innerHTML = '⏹ STOP';
+                        btn.className = 'bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded-lg shadow-lg flex items-center gap-2 transition-transform transform active:scale-95';
+                        overlay.classList.add('hidden');
+                        liveInd.classList.remove('hidden');
+                    } else {
+                        btn.innerHTML = '▶ START';
+                        btn.className = 'bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg shadow-lg flex items-center gap-2 transition-transform transform active:scale-95';
+                        overlay.classList.remove('hidden');
+                        liveInd.classList.add('hidden');
+                    }
+                },
+
+                updateTimers(sTime, rTime, setTime) {
+                    App.State.sessionTime = sTime;
+                    App.State.restTime = rTime;
+                    App.State.setTime = setTime;
+                    document.getElementById('session-timer').innerText = UI.formatTime(sTime);
+                    
+                    const rDisp = document.getElementById('rest-timer');
+                    if (rTime > 0) {
+                        rDisp.innerText = UI.formatTime(rTime);
+                        rDisp.classList.replace('text-gray-300', 'text-amber-400');
+                    } else {
+                        rDisp.innerText = UI.formatTime(setTime);
+                        rDisp.classList.replace('text-amber-400', 'text-gray-300');
+                    }
+                    if(App.State.isSessionActive) this.saveState();
+                },
+
+                renderPills() {
+                    const cont = document.getElementById('exercise-pills-container');
+                    const routine = App.State.routines[App.State.activeRoutine];
+                    cont.innerHTML = routine.map((ex, i) => `
+                        <button onclick="App.Workout.jumpToExercise(${i})" class="shrink-0 px-4 py-2 rounded-full text-xs font-bold border transition-colors ${i === App.State.activeExIndex ? 'bg-accent text-white border-accent' : 'bg-surface text-gray-400 border-gray-700 hover:border-gray-500'}">
+                            ${i+1}. ${ex.name}
+                        </button>
+                    `).join('');
+                },
+
+                jumpToExercise(i) {
+                    App.State.activeExIndex = i;
+                    App.State.currentSet = 1; // Reset set count on jump
+                    Engine.worker.postMessage({ cmd: 'STOP_REST' });
+                    Engine.worker.postMessage({ cmd: 'RESET_SET_TIME' });
+                    this.renderPills();
+                    this.renderActiveExercise();
+                    this.saveState();
+                },
+
+                async renderActiveExercise() {
+                    const routine = App.State.routines[App.State.activeRoutine];
+                    const ex = routine[App.State.activeExIndex];
+                    
+                    document.getElementById('exercise-progress').innerText = `Exercise ${App.State.activeExIndex + 1} of ${routine.length}`;
+                    document.getElementById('active-exercise-name').innerText = ex.name;
+                    document.getElementById('target-sets').innerText = ex.sets;
+                    document.getElementById('target-reps').innerText = ex.reps;
+                    document.getElementById('current-set').innerText = App.State.currentSet;
+
+                    // Prefill last weight if available in today's logs for this ex
+                    const todayExLogs = App.State.logs.filter(l => l.exId === ex.id);
+                    const weightInput = document.getElementById('log-weight');
+                    
+                    if (todayExLogs.length > 0) {
+                        weightInput.value = todayExLogs[todayExLogs.length-1].weight;
+                    } else {
+                        // Find historical best
+                        let allLogs = JSON.parse(localStorage.getItem('trackfit_workout_logs') || '[]');
+                        let hist = allLogs.filter(l => l.exId === ex.id).sort((a,b) => new Date(b.date) - new Date(a.date));
+                        if(hist.length > 0) {
+                            document.getElementById('last-log-display').innerText = `${hist[0].weight}kg x ${hist[0].reps}`;
+                            weightInput.value = hist[0].weight;
+                        } else {
+                            document.getElementById('last-log-display').innerText = `No data`;
+                            weightInput.value = '';
+                        }
+                    }
+                    document.getElementById('log-reps').value = '';
+                },
+
+                async logSet() {
+                    if (!App.State.isSessionActive) return;
+                    
+                    const weight = parseFloat(document.getElementById('log-weight').value);
+                    const reps = parseInt(document.getElementById('log-reps').value);
+                    if (isNaN(weight) || isNaN(reps)) return alert("Enter weight and reps.");
+
+                    const routine = App.State.routines[App.State.activeRoutine];
+                    const ex = routine[App.State.activeExIndex];
+
+                    const logEntry = {
+                        date: App.State.dateStr,
+                        routine: App.State.activeRoutine,
+                        exId: ex.id,
+                        exName: ex.name,
+                        setNum: App.State.currentSet,
+                        weight: weight,
+                        reps: reps,
+                        duration: UI.formatTime(App.State.setTime) // Use setTime!
+                    };
+
+                    App.State.logs.push({...logEntry, id: Date.now().toString()});
+                    await DB.request('workout_logs', 'POST', logEntry);
+                    
+                    this.renderTodayLogs();
+
+                    // Start Rest
+                    const restDur = ex.sets >= 4 ? 90 : 60;
+                    Engine.worker.postMessage({ cmd: 'START_REST', duration: restDur });
+                    
+                    document.getElementById('log-reps').value = ''; // clear reps for next set
+                    this.saveState();
+                },
+
+                handleRestComplete() {
+                    const routine = App.State.routines[App.State.activeRoutine];
+                    const ex = routine[App.State.activeExIndex];
+                    
+                    if (App.State.currentSet < ex.sets) {
+                        App.State.currentSet++;
+                        this.renderActiveExercise();
+                        this.saveState();
+                    } else {
+                        // Prompt progression
+                        if (App.State.activeExIndex < routine.length - 1) {
+                            if(confirm(`Finished all sets for ${ex.name}. Move to next exercise?`)) {
+                                this.jumpToExercise(App.State.activeExIndex + 1);
+                            }
+                        } else {
+                            alert("Routine Complete! Great job.");
+                        }
+                    }
+                },
+
+                async deleteLog(id) {
+                    App.State.logs = App.State.logs.filter(l => l.id !== id);
+                    await DB.request('workout_logs', 'DELETE', {id});
+                    this.renderTodayLogs();
+                },
+
+                renderTodayLogs() {
+                    const cont = document.getElementById('today-logs-container');
+                    const routine = App.State.routines[App.State.activeRoutine];
+                    
+                    if (App.State.logs.length === 0) {
+                        cont.innerHTML = '<p class="text-sm text-gray-500 italic px-2">No sets logged today.</p>';
+                        return;
+                    }
+
+                    // Group by exercise name
+                    const grouped = {};
+                    App.State.logs.forEach(l => {
+                        if (!grouped[l.exName]) grouped[l.exName] = [];
+                        grouped[l.exName].push(l);
+                    });
+
+                    let html = '';
+                    for (const [name, logs] of Object.entries(grouped)) {
+                        html += `
+                            <div class="bg-surface rounded-lg overflow-hidden border border-gray-800">
+                                <div class="bg-gray-800/30 px-3 py-1.5 text-xs font-bold text-gray-300 border-b border-gray-800">${name}</div>
+                                <div class="divide-y divide-gray-800">
+                        `;
+                        logs.forEach(l => {
+                            html += `
+                                <div class="px-3 py-2 flex justify-between items-center text-sm">
+                                    <span class="text-gray-400 w-12">Set ${l.setNum}</span>
+                                    <span class="font-bold text-white">${l.weight}kg</span>
+                                    <span class="font-bold text-gray-300">${l.reps} reps</span>
+                                    <span class="text-xs text-gray-500 font-mono">⏱ ${l.duration}</span>
+                                    <button onclick="App.Workout.deleteLog('${l.id}')" class="text-red-500 hover:text-red-400 px-2 font-bold">✕</button>
+                                </div>
+                            `;
+                        });
+                        html += `</div></div>`;
+                    }
+                    cont.innerHTML = html;
+                }
+            },
+
+            Bodyweight: {
+                logs: [],
                 
-                const mealTitle = items.length === 1 ? items[0].name : `${items[0].name} & More`;
+                async load() {
+                    this.logs = await DB.request('bodyweight_logs', 'GET') || [];
+                    // Ensure local state formatting
+                    document.getElementById('bw-date').value = App.State.dateStr;
+                },
 
-                html += `
-                <div class="bg-card border border-gray-800 rounded-xl shadow-sm overflow-hidden">
-                    <div class="p-4 border-b border-gray-800 flex justify-between items-start">
-                        <div>
-                            <div class="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">${catName}</div>
-                            <div class="font-black text-white text-lg">${mealTitle}</div>
-                        </div>
-                        <div class="text-right">
-                            <div class="font-black text-accent text-xl">${mealK} <span class="text-[10px] text-gray-500 font-normal">kcal</span></div>
-                            <div class="text-[10px] font-bold text-gray-500 flex gap-2 mt-1 justify-end">
-                                <span>C:<span class="text-blue-400">${mealC}</span></span>
-                                <span>P:<span class="text-accent">${mealP}</span></span>
-                                <span>F:<span class="text-yellow-500">${mealF}</span></span>
+                async saveLog() {
+                    const d = document.getElementById('bw-date').value;
+                    const w = parseFloat(document.getElementById('bw-weight').value);
+                    if (!d || isNaN(w)) return;
+                    
+                    const entry = { date: d, weight: w };
+                    this.logs.push({ ...entry, id: Date.now().toString() });
+                    await DB.request('bodyweight_logs', 'POST', entry);
+                    document.getElementById('bw-weight').value = '';
+                    this.render();
+                },
+                
+                async deleteLog(id) {
+                    this.logs = this.logs.filter(l => l.id !== id);
+                    await DB.request('bodyweight_logs', 'DELETE', {id});
+                    this.render();
+                },
+
+                render() {
+                    this.load().then(() => {
+                        const cont = document.getElementById('bw-weekly-summary');
+                        if (this.logs.length === 0) {
+                            cont.innerHTML = '<p class="text-gray-500 text-sm">No weight data logged.</p>';
+                            return;
+                        }
+
+                        // Sort desc by date
+                        let sorted = [...this.logs].sort((a,b) => new Date(b.date) - new Date(a.date));
+                        
+                        // Group by week ending Sunday
+                        const weeks = {};
+                        sorted.forEach(l => {
+                            const d = new Date(l.date);
+                            const day = d.getDay();
+                            const diff = d.getDate() - day + (day == 0 ? 0 : 7); // nearest next Sunday
+                            const sun = new Date(d.setDate(diff));
+                            const wKey = sun.toISOString().split('T')[0];
+                            if(!weeks[wKey]) weeks[wKey] = [];
+                            weeks[wKey].push(l);
+                        });
+
+                        const wKeys = Object.keys(weeks).sort((a,b) => new Date(b) - new Date(a));
+                        
+                        let html = '';
+                        for (let i = 0; i < wKeys.length; i++) {
+                            const key = wKeys[i];
+                            const wLogs = weeks[key];
+                            const avg = wLogs.reduce((sum, l) => sum + l.weight, 0) / wLogs.length;
+                            
+                            let deltaHtml = '<span class="text-gray-500 text-xs">➡️ Baseline</span>';
+                            if (i < wKeys.length - 1) {
+                                const prevLogs = weeks[wKeys[i+1]];
+                                const prevAvg = prevLogs.reduce((sum, l) => sum + l.weight, 0) / prevLogs.length;
+                                const diff = avg - prevAvg;
+                                if (diff > 0.1) deltaHtml = `<span class="text-red-400 text-xs bg-red-900/30 px-2 py-0.5 rounded">🔺 +${Math.abs(diff).toFixed(1)}kg</span>`;
+                                else if (diff < -0.1) deltaHtml = `<span class="text-emerald-400 text-xs bg-emerald-900/30 px-2 py-0.5 rounded">🔻 -${Math.abs(diff).toFixed(1)}kg</span>`;
+                                else deltaHtml = '<span class="text-gray-500 text-xs">➡️ No change</span>';
+                            }
+
+                            html += `
+                            <div class="bg-surface rounded-lg border border-gray-800 overflow-hidden">
+                                <button class="w-full px-4 py-3 flex justify-between items-center bg-gray-800/30 hover:bg-gray-800/50 transition" onclick="this.nextElementSibling.classList.toggle('hidden'); this.querySelector('.arrow').innerText = this.nextElementSibling.classList.contains('hidden') ? '▼' : '▲'">
+                                    <div class="text-left">
+                                        <p class="text-xs text-gray-400 font-bold uppercase tracking-wider mb-1">Week ending ${key}</p>
+                                        <div class="flex items-center gap-3">
+                                            <span class="text-lg font-bold text-white">${avg.toFixed(1)} kg</span>
+                                            ${deltaHtml}
+                                        </div>
+                                    </div>
+                                    <span class="arrow text-gray-500 text-xs">▼</span>
+                                </button>
+                                <div class="hidden divide-y divide-gray-800 bg-[#121212]">
+                            `;
+                            wLogs.forEach(l => {
+                                html += `
+                                    <div class="px-4 py-2 flex justify-between items-center text-sm">
+                                        <span class="text-gray-400 font-mono">${l.date}</span>
+                                        <span class="font-bold text-gray-200">${l.weight} kg</span>
+                                        <button onclick="App.Bodyweight.deleteLog('${l.id}')" class="text-red-500 text-lg px-2">✕</button>
+                                    </div>
+                                `;
+                            });
+                            html += `</div></div>`;
+                        }
+                        cont.innerHTML = html;
+                    });
+                }
+            },
+
+            Nutrition: {
+                meals: [],
+                basket: [],
+                
+                async load() {
+                    let remote = await DB.request('meal_logs', 'GET');
+                    if (remote && remote.length > 0) {
+                        this.meals = remote;
+                    } else {
+                        // Load defaults if empty
+                        let local = localStorage.getItem('trackfit_meals');
+                        if (local) this.meals = JSON.parse(local);
+                        else {
+                            this.meals = DefaultData.nutrition;
+                            localStorage.setItem('trackfit_meals', JSON.stringify(this.meals));
+                        }
+                    }
+                },
+
+                async resetDefaults() {
+                    if(!confirm("Restore default meal templates? All custom data will be lost.")) return;
+                    this.meals = JSON.parse(JSON.stringify(DefaultData.nutrition));
+                    localStorage.setItem('trackfit_meals', JSON.stringify(this.meals));
+                    // DB wipe mock (since REST API requires IDs for delete, we just reset local for demo)
+                    this.render();
+                },
+
+                calcKcal(c, p, f) {
+                    return (c * 4) + (p * 4) + (f * 9);
+                },
+
+                render() {
+                    this.load().then(() => {
+                        const type = document.getElementById('nut-day-type').value;
+                        const filter = document.getElementById('nut-filter').value;
+                        
+                        let filtered = this.meals.filter(m => m.type === type);
+                        if (filter !== 'all') filtered = filtered.filter(m => m.cat === filter);
+
+                        // Calc Totals
+                        let tc = 0, tp = 0, tf = 0;
+                        filtered.forEach(m => {
+                            m.items.forEach(i => { tc += i.c; tp += i.p; tf += i.f; });
+                        });
+                        
+                        document.getElementById('macro-total-kcal').innerText = Math.round(this.calcKcal(tc, tp, tf));
+                        document.getElementById('macro-total-c').innerText = Math.round(tc) + 'g';
+                        document.getElementById('macro-total-p').innerText = Math.round(tp) + 'g';
+                        document.getElementById('macro-total-f').innerText = Math.round(tf) + 'g';
+
+                        // Render Cards
+                        const cont = document.getElementById('meal-cards-container');
+                        if (filtered.length === 0) {
+                            cont.innerHTML = '<p class="text-gray-500 text-sm text-center py-4">No meals found for this filter.</p>';
+                            return;
+                        }
+
+                        cont.innerHTML = filtered.map(m => {
+                            let mc=0, mp=0, mf=0;
+                            m.items.forEach(i => { mc+=i.c; mp+=i.p; mf+=i.f; });
+                            let mkcal = Math.round(this.calcKcal(mc, mp, mf));
+
+                            return `
+                            <div class="bg-surface rounded-xl border border-gray-800 overflow-hidden shadow-lg">
+                                <div class="bg-gray-800/40 p-3 border-b border-gray-800 flex justify-between items-center">
+                                    <div>
+                                        <span class="text-[10px] text-gray-400 uppercase tracking-widest font-bold block mb-0.5">${m.cat}</span>
+                                        <h4 class="text-white font-bold">${m.name || 'Custom Meal'}</h4>
+                                    </div>
+                                    <div class="text-right">
+                                        <span class="text-lg font-bold text-accent">${mkcal} <span class="text-xs text-gray-400">kcal</span></span>
+                                        <div class="text-[10px] text-gray-400 flex gap-1 justify-end mt-0.5 font-mono">
+                                            <span class="text-blue-400">C:${Math.round(mc)}</span>
+                                            <span class="text-red-400">P:${Math.round(mp)}</span>
+                                            <span class="text-yellow-500">F:${Math.round(mf)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="divide-y divide-gray-800 bg-[#121212]">
+                                    ${m.items.map(i => `
+                                        <div class="px-3 py-2 flex justify-between text-xs">
+                                            <span class="text-gray-300 w-1/3 truncate">${i.name} <span class="text-gray-500">(${i.portion}g)</span></span>
+                                            <div class="flex-1 flex justify-end gap-3 text-gray-500 font-mono">
+                                                <span>${i.c}c</span><span>${i.p}p</span><span>${i.f}f</span>
+                                                <span class="text-white font-bold w-8 text-right">${Math.round(this.calcKcal(i.c, i.p, i.f))}</span>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                <div class="bg-surface p-2 flex justify-end gap-2 border-t border-gray-800">
+                                    <button onclick="App.Nutrition.deleteMeal('${m.id}')" class="text-xs text-red-500 bg-red-500/10 px-3 py-1 rounded">✕ Delete</button>
+                                </div>
+                            </div>
+                            `;
+                        }).join('');
+                    });
+                },
+
+                updateBasketPreview() {
+                    const c = parseFloat(document.getElementById('mb-c').value) || 0;
+                    const p = parseFloat(document.getElementById('mb-p').value) || 0;
+                    const f = parseFloat(document.getElementById('mb-f').value) || 0;
+                    document.getElementById('mb-kcal-preview').innerText = Math.round(this.calcKcal(c,p,f)) + ' kcal';
+                },
+
+                addToBasket() {
+                    const name = document.getElementById('mb-name').value;
+                    const portion = parseFloat(document.getElementById('mb-portion').value) || 0;
+                    const c = parseFloat(document.getElementById('mb-c').value) || 0;
+                    const p = parseFloat(document.getElementById('mb-p').value) || 0;
+                    const f = parseFloat(document.getElementById('mb-f').value) || 0;
+
+                    if (!name) return alert("Enter food name.");
+                    
+                    this.basket.push({ id: Date.now(), name, portion, c, p, f });
+                    
+                    document.getElementById('mb-name').value = '';
+                    document.getElementById('mb-portion').value = '';
+                    document.getElementById('mb-c').value = '';
+                    document.getElementById('mb-p').value = '';
+                    document.getElementById('mb-f').value = '';
+                    this.updateBasketPreview();
+                    this.renderBasket();
+                },
+                
+                removeFromBasket(id) {
+                    this.basket = this.basket.filter(i => i.id !== id);
+                    this.renderBasket();
+                },
+
+                renderBasket() {
+                    const cont = document.getElementById('mb-basket');
+                    if (this.basket.length === 0) { cont.innerHTML = '<span class="text-xs text-gray-500">Empty</span>'; return; }
+                    cont.innerHTML = this.basket.map(i => `
+                        <div class="flex justify-between items-center text-xs bg-[#1A1A1A] p-2 rounded border border-gray-700">
+                            <span class="text-white">${i.name} (${i.portion}g)</span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-gray-400 font-mono">${Math.round(this.calcKcal(i.c,i.p,i.f))} kcal</span>
+                                <button onclick="App.Nutrition.removeFromBasket(${i.id})" class="text-red-500">✕</button>
                             </div>
                         </div>
-                    </div>
-                    <div class="divide-y divide-gray-800/50">`;
-                
-                items.forEach(n => {
-                    html += `
-                        <div class="px-4 py-3 bg-[#121212] flex items-center justify-between group">
-                            <div class="text-sm font-medium text-gray-300 w-1/2">${n.name} <span class="text-gray-500 text-xs font-normal">(${n.weight}g)</span></div>
-                            <div class="text-[10px] text-gray-500 flex gap-2 w-1/3 justify-end">
-                                <span>${n.carb}c</span> <span>${n.pro}p</span> <span>${n.fat}f</span>
+                    `).join('');
+                },
+
+                async saveMeal() {
+                    if (this.basket.length === 0) return alert("Basket is empty.");
+                    const meal = {
+                        id: Date.now().toString(),
+                        type: document.getElementById('mb-day').value,
+                        cat: document.getElementById('mb-cat').value,
+                        name: 'Custom ' + document.getElementById('mb-cat').value,
+                        items: [...this.basket]
+                    };
+                    
+                    this.meals.push(meal);
+                    localStorage.setItem('trackfit_meals', JSON.stringify(this.meals));
+                    await DB.request('meal_logs', 'POST', meal);
+                    
+                    this.basket = [];
+                    this.renderBasket();
+                    UI.closeModal('meal-builder-modal');
+                    this.render();
+                },
+
+                async deleteMeal(id) {
+                    this.meals = this.meals.filter(m => m.id !== id);
+                    localStorage.setItem('trackfit_meals', JSON.stringify(this.meals));
+                    await DB.request('meal_logs', 'DELETE', {id});
+                    this.render();
+                }
+            },
+
+            History: {
+                async render() {
+                    const filter = document.getElementById('history-filter').value;
+                    let logs = JSON.parse(localStorage.getItem('trackfit_workout_logs') || '[]');
+                    // Fetch fresh from DB if online
+                    if(DB.isOnline) {
+                         const remoteLogs = await DB.request('workout_logs', 'GET');
+                         if(remoteLogs) logs = remoteLogs;
+                    }
+
+                    if (filter !== 'all') logs = logs.filter(l => l.routine === filter);
+                    logs.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+                    const cont = document.getElementById('history-list');
+                    if (logs.length === 0) {
+                        cont.innerHTML = '<p class="text-gray-500 text-sm text-center">No history found.</p>';
+                        return;
+                    }
+
+                    cont.innerHTML = logs.map(l => `
+                        <div class="bg-[#121212] p-3 rounded-lg border border-gray-800 text-sm">
+                            <div class="flex justify-between border-b border-gray-800 pb-2 mb-2">
+                                <span class="text-accent font-bold uppercase text-[10px] tracking-wider">${l.routine}</span>
+                                <span class="text-gray-500 font-mono text-[10px]">${l.date}</span>
                             </div>
-                            <div class="text-sm font-bold text-white w-12 text-right">${n.kcal}</div>
-                            <button onclick="deleteFood('${n.id}')" class="text-gray-600 hover:text-accent font-bold px-2 ml-2 transition-colors">✕</button>
+                            <div class="flex justify-between items-center">
+                                <span class="text-white font-bold w-1/2 truncate">${l.exName}</span>
+                                <div class="text-right">
+                                    <span class="text-gray-300">Set ${l.setNum}: </span>
+                                    <span class="text-white font-bold">${l.weight}kg</span> × <span class="text-white font-bold">${l.reps}</span>
+                                </div>
+                            </div>
                         </div>
-                    `;
-                });
+                    `).join('');
+                }
+            },
+
+            Customizer: {
+                render() {
+                    const r = document.getElementById('config-routine-selector').value;
+                    const routine = App.State.routines[r];
+                    const cont = document.getElementById('customizer-list');
+                    
+                    cont.innerHTML = routine.map((ex, i) => `
+                        <div class="bg-[#121212] p-3 rounded-lg border border-gray-800 flex flex-col gap-2 relative">
+                            <button onclick="App.Customizer.removeExercise(${i})" class="absolute top-2 right-2 text-red-500 text-xs">✕ Remove</button>
+                            <input type="text" value="${ex.name}" onchange="App.Customizer.updateEx(${i}, 'name', this.value)" class="bg-surface text-white text-sm p-2 rounded border border-gray-700 outline-none w-[80%] font-bold">
+                            <div class="flex gap-2">
+                                <div class="flex-1">
+                                    <label class="text-[10px] text-gray-500 uppercase">Sets</label>
+                                    <input type="number" value="${ex.sets}" onchange="App.Customizer.updateEx(${i}, 'sets', parseInt(this.value))" class="w-full bg-surface text-white text-sm p-2 rounded border border-gray-700 outline-none text-center">
+                                </div>
+                                <div class="flex-1">
+                                    <label class="text-[10px] text-gray-500 uppercase">Reps</label>
+                                    <input type="text" value="${ex.reps}" onchange="App.Customizer.updateEx(${i}, 'reps', this.value)" class="w-full bg-surface text-white text-sm p-2 rounded border border-gray-700 outline-none text-center">
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                },
                 
-                html += `</div></div>`;
+                updateEx(idx, field, val) {
+                    const r = document.getElementById('config-routine-selector').value;
+                    App.State.routines[r][idx][field] = val;
+                    localStorage.setItem('trackfit_routines', JSON.stringify(App.State.routines));
+                },
+
+                removeExercise(idx) {
+                    const r = document.getElementById('config-routine-selector').value;
+                    App.State.routines[r].splice(idx, 1);
+                    localStorage.setItem('trackfit_routines', JSON.stringify(App.State.routines));
+                    this.render();
+                    if(App.State.activeRoutine === r) App.Workout.renderPills();
+                },
+
+                addTempExercise() {
+                    const r = document.getElementById('config-routine-selector').value;
+                    App.State.routines[r].push({
+                        id: `cust-${Date.now()}`,
+                        name: 'New Exercise',
+                        sets: 3,
+                        reps: '8-12'
+                    });
+                    localStorage.setItem('trackfit_routines', JSON.stringify(App.State.routines));
+                    this.render();
+                    if(App.State.activeRoutine === r) App.Workout.renderPills();
+                },
+
+                reset() {
+                    if(!confirm("Reset ALL routines to default? Custom exercises will be lost.")) return;
+                    App.State.routines = JSON.parse(JSON.stringify(DefaultData.routines));
+                    localStorage.setItem('trackfit_routines', JSON.stringify(App.State.routines));
+                    this.render();
+                    App.Workout.renderPills();
+                }
             }
+        };
 
-            document.getElementById('nutritionList').innerHTML = html;
+        // DOM Listeners for Nutrition Modal live updates
+        document.getElementById('mb-c').addEventListener('input', () => App.Nutrition.updateBasketPreview());
+        document.getElementById('mb-p').addEventListener('input', () => App.Nutrition.updateBasketPreview());
+        document.getElementById('mb-f').addEventListener('input', () => App.Nutrition.updateBasketPreview());
 
-            const fullDay = nutritionData.filter(n => n.dayType === dayType);
-            let dK = 0, dP = 0, dC = 0, dF = 0;
-            fullDay.forEach(n => { dK+=n.kcal; dP+=n.pro; dC+=n.carb; dF+=n.fat; });
+        // Boot
+        window.onload = () => {
+            App.init();
+        };
 
-            document.getElementById('macroKcal').innerText = dK;
-            document.getElementById('macroPro').innerText = dP + 'g';
-            document.getElementById('macroCarb').innerText = dC + 'g';
-            document.getElementById('macroFat').innerText = dF + 'g';
-        }
-
-        function addFoodModal() {
-            const dayType = document.getElementById('macroDayType').value;
-            const cat = document.getElementById('macroCategory').value === 'ALL' ? 'Breakfast' : document.getElementById('macroCategory').value;
-            
-            const name = prompt('Food Name (e.g. Oats):'); if(!name) return;
-            const weight = parseFloat(prompt('Portion Weight (g):') || 0);
-            const pro = parseFloat(prompt('Protein (g):') || 0);
-            const carb = parseFloat(prompt('Carbs (g):') || 0);
-            const fat = parseFloat(prompt('Fats (g):') || 0);
-            const kcal = Math.round((pro * 4) + (carb * 4) + (fat * 9));
-
-            const entry = { id: crypto.randomUUID(), dayType, category: cat, name, weight, pro, carb, fat, kcal };
-            nutritionData.push(entry);
-            localStorage.setItem('nutritionData', JSON.stringify(nutritionData));
-            renderNutrition();
-        }
-
-        function deleteFood(id) {
-            nutritionData = nutritionData.filter(n => n.id !== id);
-            localStorage.setItem('nutritionData', JSON.stringify(nutritionData));
-            renderNutrition();
-        }
-
-        function resetMacros() {
-            if(confirm('Clear all food data?')) {
-                nutritionData = [];
-                localStorage.setItem('nutritionData', '[]');
-                renderNutrition();
-            }
-        }
-
-        // ================= MODALS & SYNC =================
-        function toggleModal(id) {
-            const el = document.getElementById(id);
-            if (el.classList.contains('hidden')) {
-                el.classList.remove('hidden'); el.classList.add('flex');
-                if (id === 'historyModal') renderHistory();
-                if (id === 'exerciseModal') renderExerciseEditor();
-            } else {
-                el.classList.add('hidden'); el.classList.remove('flex');
-            }
-        }
-
-        function renderHistory() {
-            const filter = document.getElementById('historyFilter').value;
-            let d = [...logs].sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
-            if (filter !== 'ALL') d = d.filter(l => l.routine === filter);
-
-            document.getElementById('historyList').innerHTML = d.map(l => `
-                <div class="bg-card border border-gray-800 rounded-xl p-4 shadow-sm">
-                    <div class="flex justify-between text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-2 border-b border-gray-800 pb-2">
-                        <span>${l.created_at.split('T')[0]} • ${l.routine}</span>
-                        <span class="flex items-center gap-1">⏱ ${l.duration}</span>
-                    </div>
-                    <div class="flex justify-between items-center">
-                        <span class="font-black text-white text-sm uppercase tracking-tight">${l.exercise}</span>
-                        <span class="font-mono text-[11px] text-accent font-bold bg-[#121212] px-2.5 py-1 rounded-md border border-gray-800">Set ${l.set_number} | ${l.weight}kg × ${l.reps}</span>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function renderExerciseEditor() {
-            const r = document.getElementById('editRoutineSelector').value;
-            document.getElementById('exerciseEditList').innerHTML = customExercises[r].map((ex, idx) => `
-                <div class="bg-card border border-gray-800 rounded-xl p-4 relative shadow-sm">
-                    <input type="text" value="${ex.name}" class="bg-[#121212] border border-gray-700 rounded-lg p-2 text-white font-black text-sm w-full mb-3 outline-none focus:border-gray-500 uppercase tracking-tight" onchange="updateEx(${idx}, 'name', this.value)">
-                    <div class="flex gap-2">
-                        <div class="flex-1 flex items-center bg-[#121212] border border-gray-700 rounded-lg px-3 focus-within:border-gray-500 transition-colors">
-                            <span class="text-[9px] text-gray-500 font-bold uppercase tracking-widest w-8">Sets</span>
-                            <input type="number" value="${ex.sets}" class="bg-transparent text-white font-black p-2 w-full text-center outline-none" onchange="updateEx(${idx}, 'sets', parseInt(this.value))">
-                        </div>
-                        <div class="flex-1 flex items-center bg-[#121212] border border-gray-700 rounded-lg px-3 focus-within:border-gray-500 transition-colors">
-                            <span class="text-[9px] text-gray-500 font-bold uppercase tracking-widest w-8">Reps</span>
-                            <input type="text" value="${ex.reps}" class="bg-transparent text-white font-black p-2 w-full text-center outline-none" onchange="updateEx(${idx}, 'reps', this.value)">
-                        </div>
-                    </div>
-                    <button onclick="removeEx(${idx})" class="absolute top-2 right-2 text-gray-600 hover:text-accent font-black px-2 py-1 transition-colors">✕</button>
-                </div>
-            `).join('');
-        }
-
-        function updateEx(idx, f, v) { customExercises[document.getElementById('editRoutineSelector').value][idx][f] = v; localStorage.setItem('customExercises', JSON.stringify(customExercises)); loadRoutine(); }
-        function removeEx(idx) { customExercises[document.getElementById('editRoutineSelector').value].splice(idx, 1); localStorage.setItem('customExercises', JSON.stringify(customExercises)); renderExerciseEditor(); loadRoutine(); }
-        function addCustomExercise() { customExercises[document.getElementById('editRoutineSelector').value].push({name: "New Exercise", sets: 3, reps: "8-12"}); localStorage.setItem('customExercises', JSON.stringify(customExercises)); renderExerciseEditor(); loadRoutine(); }
-        function resetDefaultExercises() { if(confirm('Reset all to default?')) { customExercises = JSON.parse(JSON.stringify(DEFAULT_ROUTINES)); localStorage.setItem('customExercises', JSON.stringify(customExercises)); renderExerciseEditor(); loadRoutine(); } }
-
-        async function fetchSupabaseData() {
-            if (!isOnline) return;
-            try {
-                const [rL, rB] = await Promise.all([
-                    fetch(`${SUPABASE_URL}/workout_logs?select=*`, { headers: HEADERS }),
-                    fetch(`${SUPABASE_URL}/bodyweight_logs?select=*`, { headers: HEADERS })
-                ]);
-                if (rL.ok) { const dbL = await rL.json(); if(dbL.length > logs.length) { logs = dbL; localStorage.setItem('logs', JSON.stringify(logs)); renderTodayLogs(); } }
-                if (rB.ok) { const dbB = await rB.json(); if(dbB.length > bodyweightData.length) { bodyweightData = dbB; localStorage.setItem('bodyweightData', JSON.stringify(bodyweightData)); renderBodyweight(); } }
-            } catch(e) {}
-        }
     </script>
 </body>
 </html>
