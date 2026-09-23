@@ -29,146 +29,183 @@
 </head>
 <body class="bg-canvas text-white antialiased pb-24">
 
-    <!-- 2. Header & Status Bar -->
-    <header class="fixed top-0 w-full bg-canvas/95 backdrop-blur-md z-50 border-b border-gray-800 px-4 py-3 shadow-lg">
-        <div class="flex justify-between items-center mb-3">
+    <!-- Header & Status Bar -->
+    <header class="fixed top-0 w-full bg-canvas/95 backdrop-blur-md z-50 border-b border-gray-800 px-2 py-3 shadow-lg">
+        <div class="flex justify-between items-center mb-3 px-2">
             <div>
                 <h1 class="text-xl font-black tracking-wider text-accent uppercase">Tracker</h1>
-                <p class="text-xs text-gray-400 font-medium">Upper 1 | Lower 1 | Upper 2 | Lower 2</p>
+                <p class="text-[10px] text-gray-400 font-medium">Upper 1 | Lower 1 | Upper 2 | Lower 2</p>
             </div>
-            <div id="connectionBadge" class="text-xs font-bold px-2 py-1 rounded bg-amber-900/50 text-amber-400 border border-amber-800 flex items-center gap-1 shadow-sm transition-colors">
-                ⚡ Local Storage Mode
+            <div id="connectionBadge" class="text-[10px] font-bold px-2 py-1 rounded bg-amber-900/50 text-amber-400 border border-amber-800 flex items-center gap-1 shadow-sm transition-colors">
+                ⚡ Local Mode
             </div>
         </div>
-        <div class="flex gap-2">
-            <button onclick="toggleModal('historyModal')" class="flex-1 bg-card hover:bg-gray-800 border border-gray-700 py-1.5 rounded text-sm font-bold transition-colors shadow-sm">📜 History</button>
-            <button onclick="toggleModal('exerciseModal')" class="flex-1 bg-card hover:bg-gray-800 border border-gray-700 py-1.5 rounded text-sm font-bold transition-colors shadow-sm">⚙️ Exercises</button>
+        <div class="flex gap-1.5 px-1 overflow-x-auto hide-scrollbar">
+            <button onclick="toggleModal('historyModal')" class="flex-1 min-w-[70px] bg-card hover:bg-gray-800 border border-gray-700 py-2 rounded text-[11px] font-bold transition-colors shadow-sm whitespace-nowrap">📜 History</button>
+            <button onclick="toggleModal('exerciseModal')" class="flex-1 min-w-[70px] bg-card hover:bg-gray-800 border border-gray-700 py-2 rounded text-[11px] font-bold transition-colors shadow-sm whitespace-nowrap">⚙️ Exercises</button>
+            <button onclick="toggleModal('bodyweightModal')" class="flex-1 min-w-[70px] bg-card hover:bg-gray-800 border border-gray-700 py-2 rounded text-[11px] font-bold transition-colors shadow-sm whitespace-nowrap">⚖️ Weight</button>
+            <button onclick="toggleModal('nutritionModal')" class="flex-1 min-w-[70px] bg-card hover:bg-gray-800 border border-gray-700 py-2 rounded text-[11px] font-bold transition-colors shadow-sm whitespace-nowrap">🍎 Macros</button>
         </div>
     </header>
 
-    <!-- Main Content -->
-    <main class="mt-28 px-4 max-w-lg mx-auto space-y-8">
-        
-        <!-- 3. Workout Tracker Module -->
-        <section>
-            <select id="routineSelector" class="w-full bg-card border border-gray-700 rounded-lg p-3 text-white font-bold mb-4 focus:outline-none focus:border-accent shadow-sm" onchange="loadRoutine()">
-                <option value="UPPER BODY 1">Monday - UPPER BODY 1</option>
-                <option value="LOWER BODY 1">Tuesday - LOWER BODY 1</option>
-                <option value="UPPER BODY 2">Thursday - UPPER BODY 2</option>
-                <option value="LOWER BODY 2">Friday - LOWER BODY 2</option>
+    <!-- Main Content (Workout Module Only) -->
+    <main class="mt-[116px] px-4 max-w-lg mx-auto">
+        <select id="routineSelector" class="w-full bg-card border border-gray-700 rounded-lg p-3 text-white font-bold mb-4 focus:outline-none focus:border-accent shadow-sm" onchange="loadRoutine()">
+            <option value="UPPER BODY 1">Monday - UPPER BODY 1</option>
+            <option value="LOWER BODY 1">Tuesday - LOWER BODY 1</option>
+            <option value="UPPER BODY 2">Thursday - UPPER BODY 2</option>
+            <option value="LOWER BODY 2">Friday - LOWER BODY 2</option>
+        </select>
+
+        <div class="flex items-center justify-between bg-card p-4 rounded-lg border border-gray-800 mb-4 shadow-sm">
+            <div class="text-3xl font-mono tracking-widest font-bold" id="sessionTimer">00:00:00</div>
+            <button id="sessionToggle" onclick="toggleSession()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-6 rounded-lg transition-colors shadow-md uppercase tracking-wide text-sm">
+                ▶ Start
+            </button>
+        </div>
+
+        <div class="flex overflow-x-auto hide-scrollbar gap-2 mb-4 py-1" id="exerciseTabs">
+            <!-- Quick Tabs injected here -->
+        </div>
+
+        <div id="activeExerciseCard" class="bg-card rounded-xl border border-gray-700 p-5 shadow-lg relative hidden">
+            <div class="flex justify-between items-start mb-4">
+                <div>
+                    <span id="progressBadge" class="text-xs font-bold text-gray-400 tracking-wider uppercase mb-1 block">Exercise 1 of X</span>
+                    <h2 id="exerciseName" class="text-xl font-black text-white leading-tight">Exercise Name</h2>
+                </div>
+                <div id="activeTimer" class="text-2xl font-mono font-bold text-accent bg-canvas px-3 py-1 rounded border border-gray-800 shadow-inner">
+                    00:00
+                </div>
+            </div>
+
+            <div class="grid grid-cols-4 gap-2 mb-5 text-center text-sm border-y border-gray-800 py-3 bg-canvas/50 rounded">
+                <div>
+                    <div class="text-gray-500 text-[10px] uppercase font-bold tracking-wide">Target</div>
+                    <div class="font-bold text-white mt-1" id="targetSetsReps">-</div>
+                </div>
+                <div>
+                    <div class="text-gray-500 text-[10px] uppercase font-bold tracking-wide">Set</div>
+                    <div class="font-black text-accent text-lg leading-none mt-1" id="currentSetLabel">1</div>
+                </div>
+                <div class="col-span-2 text-right pr-2">
+                    <div class="text-gray-500 text-[10px] uppercase font-bold tracking-wide">Last Log</div>
+                    <div class="font-bold text-gray-300 mt-1" id="lastLogLabel">--</div>
+                </div>
+            </div>
+
+            <div class="flex gap-3 mb-4">
+                <div class="flex-1 relative">
+                    <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide absolute -top-2 left-3 bg-card px-1">Weight (KG)</label>
+                    <input type="number" id="weightInput" step="0.5" class="w-full bg-canvas border border-gray-700 rounded-lg p-3 pt-4 text-white font-bold text-xl focus:outline-none focus:border-accent text-center shadow-inner" placeholder="0.0">
+                </div>
+                <div class="flex-1 relative">
+                    <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide absolute -top-2 left-3 bg-card px-1">Reps</label>
+                    <input type="number" id="repsInput" class="w-full bg-canvas border border-gray-700 rounded-lg p-3 pt-4 text-white font-bold text-xl focus:outline-none focus:border-accent text-center shadow-inner" placeholder="0">
+                </div>
+            </div>
+
+            <button onclick="logSet()" id="logSetBtn" class="w-full bg-accent hover:bg-red-700 text-white font-black py-4 rounded-lg shadow-lg transition-colors uppercase tracking-widest text-lg disabled:opacity-50">
+                Log Set
+            </button>
+            <button onclick="skipRest()" id="skipRestBtn" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-black py-4 rounded-lg shadow-lg transition-colors uppercase tracking-widest text-lg hidden">
+                Skip Rest
+            </button>
+            <button onclick="nextExercise()" id="nextExerciseBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-lg shadow-lg transition-colors uppercase tracking-widest text-lg hidden">
+                ▶ Resume Next
+            </button>
+        </div>
+
+        <div class="mt-6">
+            <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 border-b border-gray-800 pb-1">Today's Sets</h3>
+            <div id="todayLogs" class="space-y-3"></div>
+        </div>
+    </main>
+
+    <!-- Modals -->
+
+    <!-- 1. History Modal -->
+    <div id="historyModal" class="fixed inset-0 bg-canvas/95 backdrop-blur z-[60] hidden flex-col">
+        <div class="bg-card p-4 flex justify-between items-center border-b border-gray-800 shadow-md">
+            <h2 class="text-lg font-black uppercase tracking-wider">📜 History</h2>
+            <button onclick="toggleModal('historyModal')" class="text-gray-400 hover:text-white p-2 font-bold">✕</button>
+        </div>
+        <div class="p-4 flex-1 overflow-y-auto max-w-lg mx-auto w-full">
+            <select id="historyFilter" class="w-full bg-card border border-gray-700 rounded-lg p-3 mb-4 font-bold outline-none focus:border-accent" onchange="renderHistory()">
+                <option value="ALL">ALL ROUTINES</option>
+                <option value="UPPER BODY 1">UPPER BODY 1</option>
+                <option value="LOWER BODY 1">LOWER BODY 1</option>
+                <option value="UPPER BODY 2">UPPER BODY 2</option>
+                <option value="LOWER BODY 2">LOWER BODY 2</option>
             </select>
+            <div id="historyList" class="space-y-3 pb-8"></div>
+        </div>
+    </div>
 
-            <div class="flex items-center justify-between bg-card p-4 rounded-lg border border-gray-800 mb-4 shadow-sm">
-                <div class="text-3xl font-mono tracking-widest font-bold" id="sessionTimer">00:00:00</div>
-                <button id="sessionToggle" onclick="toggleSession()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-6 rounded-lg transition-colors shadow-md uppercase tracking-wide">
-                    ▶ Start Session
-                </button>
-            </div>
+    <!-- 2. Exercise Customizer Modal -->
+    <div id="exerciseModal" class="fixed inset-0 bg-canvas/95 backdrop-blur z-[60] hidden flex-col">
+        <div class="bg-card p-4 flex justify-between items-center border-b border-gray-800 shadow-md">
+            <h2 class="text-lg font-black uppercase tracking-wider">⚙️ Exercises</h2>
+            <button onclick="toggleModal('exerciseModal')" class="text-gray-400 hover:text-white p-2 font-bold">✕</button>
+        </div>
+        <div class="p-4 flex-1 overflow-y-auto max-w-lg mx-auto w-full">
+            <select id="editRoutineSelector" class="w-full bg-card border border-gray-700 rounded-lg p-3 mb-4 font-bold outline-none focus:border-accent" onchange="renderExerciseEditor()">
+                <option value="UPPER BODY 1">UPPER BODY 1</option>
+                <option value="LOWER BODY 1">LOWER BODY 1</option>
+                <option value="UPPER BODY 2">UPPER BODY 2</option>
+                <option value="LOWER BODY 2">LOWER BODY 2</option>
+            </select>
+            <div id="exerciseEditList" class="space-y-3 mb-6"></div>
+            <button onclick="addCustomExercise()" class="w-full bg-card py-3 rounded-lg text-sm font-black uppercase tracking-wide border border-dashed border-gray-600 mb-3 hover:bg-gray-800 transition-colors">➕ Add Exercise</button>
+            <button onclick="resetDefaultExercises()" class="w-full bg-red-900/20 text-accent py-3 rounded-lg text-sm font-black uppercase tracking-wide border border-red-900/50 hover:bg-red-900/40 transition-colors mb-8">↺ Reset Defaults</button>
+        </div>
+    </div>
 
-            <div class="flex overflow-x-auto hide-scrollbar gap-2 mb-4 py-1" id="exerciseTabs">
-                <!-- Quick Tabs injected here -->
-            </div>
-
-            <div id="activeExerciseCard" class="bg-card rounded-xl border border-gray-700 p-5 shadow-lg relative hidden">
-                <div class="flex justify-between items-start mb-4">
-                    <div>
-                        <span id="progressBadge" class="text-xs font-bold text-gray-400 tracking-wider uppercase mb-1 block">Exercise 1 of X</span>
-                        <h2 id="exerciseName" class="text-2xl font-black text-white">Exercise Name</h2>
-                    </div>
-                    <div id="activeTimer" class="text-2xl font-mono font-bold text-accent bg-canvas px-3 py-1 rounded border border-gray-800 shadow-inner">
-                        00:00
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-4 gap-2 mb-5 text-center text-sm border-y border-gray-800 py-3 bg-canvas/50 rounded">
-                    <div>
-                        <div class="text-gray-500 text-[10px] uppercase font-bold tracking-wide">Target</div>
-                        <div class="font-bold text-white mt-1" id="targetSetsReps">-</div>
-                    </div>
-                    <div>
-                        <div class="text-gray-500 text-[10px] uppercase font-bold tracking-wide">Set</div>
-                        <div class="font-black text-accent text-lg leading-none mt-1" id="currentSetLabel">1</div>
-                    </div>
-                    <div class="col-span-2 text-right pr-2">
-                        <div class="text-gray-500 text-[10px] uppercase font-bold tracking-wide">Last Log</div>
-                        <div class="font-bold text-gray-300 mt-1" id="lastLogLabel">--</div>
-                    </div>
-                </div>
-
-                <div class="flex gap-3 mb-4">
-                    <div class="flex-1 relative">
-                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide absolute -top-2 left-3 bg-card px-1">Weight (KG)</label>
-                        <input type="number" id="weightInput" step="0.5" class="w-full bg-canvas border border-gray-700 rounded-lg p-3 pt-4 text-white font-bold text-xl focus:outline-none focus:border-accent text-center shadow-inner" placeholder="0.0">
-                    </div>
-                    <div class="flex-1 relative">
-                        <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wide absolute -top-2 left-3 bg-card px-1">Reps Done</label>
-                        <input type="number" id="repsInput" class="w-full bg-canvas border border-gray-700 rounded-lg p-3 pt-4 text-white font-bold text-xl focus:outline-none focus:border-accent text-center shadow-inner" placeholder="0">
-                    </div>
-                </div>
-
-                <button onclick="logSet()" id="logSetBtn" class="w-full bg-accent hover:bg-red-700 text-white font-black py-4 rounded-lg shadow-lg transition-colors uppercase tracking-widest text-lg disabled:opacity-50">
-                    Log Set
-                </button>
-                <button onclick="skipRest()" id="skipRestBtn" class="w-full bg-amber-600 hover:bg-amber-500 text-white font-black py-4 rounded-lg shadow-lg transition-colors uppercase tracking-widest text-lg hidden">
-                    Skip Rest
-                </button>
-                <button onclick="nextExercise()" id="nextExerciseBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-4 rounded-lg shadow-lg transition-colors uppercase tracking-widest text-lg hidden">
-                    ▶ Resume Next
-                </button>
-            </div>
-
-            <div class="mt-6">
-                <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 border-b border-gray-800 pb-1">Today's Sets</h3>
-                <div id="todayLogs" class="space-y-3"></div>
-            </div>
-        </section>
-
-        <hr class="border-gray-800">
-
-        <!-- 4. Bodyweight Log Book & Weekly Summary -->
-        <section>
-            <h2 class="text-lg font-black uppercase tracking-wider mb-4 text-accent">⚖️ Bodyweight Tracker</h2>
-            <div class="bg-card p-4 rounded-xl border border-gray-700 mb-4 shadow-sm flex gap-3">
+    <!-- 3. Bodyweight Modal -->
+    <div id="bodyweightModal" class="fixed inset-0 bg-canvas/95 backdrop-blur z-[60] hidden flex-col">
+        <div class="bg-card p-4 flex justify-between items-center border-b border-gray-800 shadow-md">
+            <h2 class="text-lg font-black uppercase tracking-wider text-accent">⚖️ Weight</h2>
+            <button onclick="toggleModal('bodyweightModal')" class="text-gray-400 hover:text-white p-2 font-bold">✕</button>
+        </div>
+        <div class="p-4 flex-1 overflow-y-auto max-w-lg mx-auto w-full">
+            <div class="bg-card p-4 rounded-xl border border-gray-700 mb-6 shadow-sm flex gap-3">
                 <input type="date" id="bwDate" class="bg-canvas border border-gray-700 rounded-lg p-2 text-sm font-bold flex-1 focus:border-accent focus:outline-none">
                 <input type="number" id="bwWeight" step="0.1" placeholder="KG" class="bg-canvas border border-gray-700 rounded-lg p-2 text-sm font-bold w-24 text-center focus:border-accent focus:outline-none">
                 <button onclick="logBodyweight()" class="bg-accent text-white px-4 rounded-lg font-bold shadow-md hover:bg-red-700">Save</button>
             </div>
             
-            <!-- Weekly Summary Accordion -->
-            <details class="bg-card border border-gray-700 rounded-xl shadow-sm mb-4 group cursor-pointer">
-                <summary class="p-4 font-bold text-sm uppercase tracking-wide flex justify-between items-center outline-none">
-                    Weekly Summaries
-                    <span class="text-gray-500 group-open:rotate-180 transition-transform">▼</span>
-                </summary>
-                <div id="bwWeeklySummary" class="p-4 pt-0 space-y-2 border-t border-gray-800 mt-2"></div>
-            </details>
+            <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 border-b border-gray-800 pb-1">Weekly Summaries</h3>
+            <div id="bwWeeklySummary" class="space-y-2 mb-6"></div>
 
-            <div class="bg-card border border-gray-700 rounded-xl overflow-hidden shadow-sm">
-                <div class="max-h-48 overflow-y-auto">
-                    <table class="w-full text-sm text-left">
-                        <thead class="text-xs text-gray-400 uppercase bg-canvas sticky top-0">
-                            <tr>
-                                <th class="px-4 py-2">Date</th>
-                                <th class="px-4 py-2">Weight</th>
-                                <th class="px-4 py-2 text-right">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="bwHistory" class="divide-y divide-gray-800 font-medium"></tbody>
-                    </table>
-                </div>
+            <h3 class="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3 border-b border-gray-800 pb-1">Log History</h3>
+            <div class="bg-card border border-gray-700 rounded-xl overflow-hidden shadow-sm mb-8">
+                <table class="w-full text-sm text-left">
+                    <tbody id="bwHistory" class="divide-y divide-gray-800 font-medium"></tbody>
+                </table>
             </div>
-        </section>
+        </div>
+    </div>
 
-        <hr class="border-gray-800">
+    <!-- 4. Nutrition Modal -->
+    <div id="nutritionModal" class="fixed inset-0 bg-canvas/95 backdrop-blur z-[60] hidden flex-col">
+        <div class="bg-card p-4 flex justify-between items-center border-b border-gray-800 shadow-md">
+            <h2 class="text-lg font-black uppercase tracking-wider text-accent">🍎 Macros</h2>
+            <button onclick="toggleModal('nutritionModal')" class="text-gray-400 hover:text-white p-2 font-bold">✕</button>
+        </div>
+        
+        <!-- Daily Macro Summary Banner -->
+        <div class="bg-card/90 backdrop-blur border-b border-gray-800 p-3 flex justify-around text-center text-sm shadow-md z-40">
+            <div><div class="text-gray-500 text-[10px] font-bold uppercase tracking-wide">Kcal</div><div id="macroKcal" class="font-black text-white text-lg">0</div></div>
+            <div><div class="text-gray-500 text-[10px] font-bold uppercase tracking-wide">Pro</div><div id="macroPro" class="font-black text-emerald-400 text-lg">0g</div></div>
+            <div><div class="text-gray-500 text-[10px] font-bold uppercase tracking-wide">Carb</div><div id="macroCarb" class="font-black text-blue-400 text-lg">0g</div></div>
+            <div><div class="text-gray-500 text-[10px] font-bold uppercase tracking-wide">Fat</div><div id="macroFat" class="font-black text-amber-400 text-lg">0g</div></div>
+        </div>
 
-        <!-- 5. Nutrition & Macro Plan Tracker -->
-        <section>
-            <h2 class="text-lg font-black uppercase tracking-wider mb-4 text-accent">🍎 Macro Tracker</h2>
-            
+        <div class="p-4 flex-1 overflow-y-auto max-w-lg mx-auto w-full">
             <div class="flex gap-2 mb-4">
                 <select id="macroDayType" class="flex-1 bg-card border border-gray-700 rounded-lg p-2 text-sm font-bold focus:border-accent outline-none shadow-sm" onchange="renderNutrition()">
                     <option value="Training">Training Day</option>
-                    <option value="Rest">Non-Training Day</option>
+                    <option value="Rest">Rest Day</option>
                 </select>
                 <select id="macroCategory" class="flex-1 bg-card border border-gray-700 rounded-lg p-2 text-sm font-bold focus:border-accent outline-none shadow-sm" onchange="renderNutrition()">
                     <option value="ALL">All Meals</option>
@@ -181,58 +218,12 @@
                 </select>
             </div>
 
-            <!-- Daily Macro Summary Banner -->
-            <div class="bg-card border border-gray-700 p-3 rounded-xl flex justify-around text-center text-sm shadow-md mb-4 sticky top-24 z-40">
-                <div><div class="text-gray-500 text-[10px] font-bold uppercase tracking-wide">Kcal</div><div id="macroKcal" class="font-black text-white text-lg">0</div></div>
-                <div><div class="text-gray-500 text-[10px] font-bold uppercase tracking-wide">Pro</div><div id="macroPro" class="font-black text-emerald-400 text-lg">0g</div></div>
-                <div><div class="text-gray-500 text-[10px] font-bold uppercase tracking-wide">Carb</div><div id="macroCarb" class="font-black text-blue-400 text-lg">0g</div></div>
-                <div><div class="text-gray-500 text-[10px] font-bold uppercase tracking-wide">Fat</div><div id="macroFat" class="font-black text-amber-400 text-lg">0g</div></div>
-            </div>
-
-            <div id="nutritionList" class="space-y-3 mb-4"></div>
+            <div id="nutritionList" class="space-y-3 mb-6"></div>
             
-            <div class="flex gap-2">
+            <div class="flex gap-2 pb-8">
                 <button onclick="addFoodModal()" class="flex-1 bg-card hover:bg-gray-800 py-3 rounded-xl text-sm font-black border border-dashed border-gray-600 text-accent uppercase tracking-wide transition-colors">➕ Add Food</button>
-                <button onclick="resetMacros()" class="bg-card hover:bg-gray-800 px-4 rounded-xl text-sm font-black border border-gray-700 text-gray-400 uppercase transition-colors" title="Reset Default Meals">↺</button>
+                <button onclick="resetMacros()" class="bg-card hover:bg-gray-800 px-4 rounded-xl text-sm font-black border border-gray-700 text-gray-400 uppercase transition-colors" title="Clear all macros">↺</button>
             </div>
-        </section>
-    </main>
-
-    <!-- 6. Management Modals -->
-    <!-- History Modal -->
-    <div id="historyModal" class="fixed inset-0 bg-canvas/95 backdrop-blur z-[60] hidden flex-col">
-        <div class="bg-card p-4 flex justify-between items-center border-b border-gray-800 shadow-md">
-            <h2 class="text-lg font-black uppercase tracking-wider">📜 History</h2>
-            <button onclick="toggleModal('historyModal')" class="text-gray-400 hover:text-white p-2 font-bold">✕</button>
-        </div>
-        <div class="p-4 flex-1 overflow-y-auto">
-            <select id="historyFilter" class="w-full bg-card border border-gray-700 rounded-lg p-3 mb-4 font-bold outline-none focus:border-accent" onchange="renderHistory()">
-                <option value="ALL">ALL ROUTINES</option>
-                <option value="UPPER BODY 1">UPPER BODY 1</option>
-                <option value="LOWER BODY 1">LOWER BODY 1</option>
-                <option value="UPPER BODY 2">UPPER BODY 2</option>
-                <option value="LOWER BODY 2">LOWER BODY 2</option>
-            </select>
-            <div id="historyList" class="space-y-3"></div>
-        </div>
-    </div>
-
-    <!-- Exercise Modal -->
-    <div id="exerciseModal" class="fixed inset-0 bg-canvas/95 backdrop-blur z-[60] hidden flex-col">
-        <div class="bg-card p-4 flex justify-between items-center border-b border-gray-800 shadow-md">
-            <h2 class="text-lg font-black uppercase tracking-wider">⚙️ Exercises</h2>
-            <button onclick="toggleModal('exerciseModal')" class="text-gray-400 hover:text-white p-2 font-bold">✕</button>
-        </div>
-        <div class="p-4 flex-1 overflow-y-auto">
-            <select id="editRoutineSelector" class="w-full bg-card border border-gray-700 rounded-lg p-3 mb-4 font-bold outline-none focus:border-accent" onchange="renderExerciseEditor()">
-                <option value="UPPER BODY 1">UPPER BODY 1</option>
-                <option value="LOWER BODY 1">LOWER BODY 1</option>
-                <option value="UPPER BODY 2">UPPER BODY 2</option>
-                <option value="LOWER BODY 2">LOWER BODY 2</option>
-            </select>
-            <div id="exerciseEditList" class="space-y-3 mb-6"></div>
-            <button onclick="addCustomExercise()" class="w-full bg-card py-3 rounded-lg text-sm font-black uppercase tracking-wide border border-dashed border-gray-600 mb-3 hover:bg-gray-800 transition-colors">➕ Add Exercise</button>
-            <button onclick="resetDefaultExercises()" class="w-full bg-red-900/20 text-accent py-3 rounded-lg text-sm font-black uppercase tracking-wide border border-red-900/50 hover:bg-red-900/40 transition-colors">↺ Reset Defaults</button>
         </div>
     </div>
 
@@ -321,18 +312,16 @@
         restoreSessionState();
         loadRoutine();
         updateBadge();
-        renderBodyweight();
-        renderNutrition();
         fetchSupabaseData();
 
         function updateBadge() {
             const badge = document.getElementById('connectionBadge');
             if (isOnline) {
-                badge.innerHTML = '⚡ Supabase Connected';
-                badge.className = 'text-xs font-bold px-2 py-1 rounded bg-emerald-900/40 text-emerald-400 border border-emerald-800 flex items-center shadow-sm';
+                badge.innerHTML = '⚡ Connected';
+                badge.className = 'text-[10px] font-bold px-2 py-1 rounded bg-emerald-900/40 text-emerald-400 border border-emerald-800 flex items-center shadow-sm';
             } else {
-                badge.innerHTML = '⚡ Local Storage Mode';
-                badge.className = 'text-xs font-bold px-2 py-1 rounded bg-amber-900/40 text-amber-400 border border-amber-800 flex items-center shadow-sm';
+                badge.innerHTML = '⚡ Local Mode';
+                badge.className = 'text-[10px] font-bold px-2 py-1 rounded bg-amber-900/40 text-amber-400 border border-amber-800 flex items-center shadow-sm';
             }
         }
 
@@ -390,7 +379,7 @@
                 
                 if (weights.length > 0) {
                     const maxWeight = Math.max(...weights);
-                    document.getElementById('lastLogLabel').innerText = `${maxWeight}kg × ${minReps} (min)`;
+                    document.getElementById('lastLogLabel').innerText = `${maxWeight}kg × ${minReps}`;
                     if(!document.getElementById('weightInput').value) document.getElementById('weightInput').value = maxWeight;
                 } else {
                     document.getElementById('lastLogLabel').innerText = `BW × ${minReps}`;
@@ -514,8 +503,8 @@
                 isResting = false;
                 currentSet = 1;
                 
-                btn.innerHTML = '⏹ Stop Session';
-                btn.className = 'bg-red-700 hover:bg-red-600 text-white font-bold py-2 px-6 rounded-lg transition-colors shadow-md uppercase tracking-wide';
+                btn.innerHTML = '⏹ Stop';
+                btn.className = 'bg-red-700 hover:bg-red-600 text-white font-bold py-2 px-6 rounded-lg transition-colors shadow-md uppercase tracking-wide text-sm';
                 card.classList.remove('hidden');
                 
                 worker.postMessage('start');
@@ -527,8 +516,8 @@
                 saveSessionState();
             } else {
                 sessionActive = false;
-                btn.innerHTML = '▶ Start Session';
-                btn.className = 'bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-6 rounded-lg transition-colors shadow-md uppercase tracking-wide';
+                btn.innerHTML = '▶ Start';
+                btn.className = 'bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 px-6 rounded-lg transition-colors shadow-md uppercase tracking-wide text-sm';
                 card.classList.add('hidden');
                 
                 worker.postMessage('stop');
@@ -552,7 +541,7 @@
             if (isResting) {
                 const remaining = Math.ceil((restEndTime - Date.now()) / 1000);
                 if (remaining <= 0) {
-                    // ====== THE TIMER FIX IS HERE ======
+                    // TIMER FIX IS HERE
                     isResting = false;
                     setStartTime = Date.now(); // Set starts at 00:00
                     currentSet++;
@@ -686,7 +675,7 @@
                     else delta = `<span class="text-gray-500 font-bold">➡️ 0.0 kg</span>`;
                 }
 
-                html += `<div class="bg-canvas border border-gray-800 rounded p-3 flex justify-between items-center">
+                html += `<div class="bg-canvas border border-gray-800 rounded p-3 flex justify-between items-center shadow-sm">
                     <div><div class="text-[10px] text-gray-500 uppercase font-bold">Week ending ${w}</div>
                     <div class="font-black text-white text-lg">${avg} kg avg</div></div>
                     <div>${delta}</div>
@@ -773,6 +762,8 @@
                 el.classList.remove('hidden'); el.classList.add('flex');
                 if (id === 'historyModal') renderHistory();
                 if (id === 'exerciseModal') renderExerciseEditor();
+                if (id === 'bodyweightModal') renderBodyweight();
+                if (id === 'nutritionModal') renderNutrition();
             } else {
                 el.classList.add('hidden'); el.classList.remove('flex');
             }
