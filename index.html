@@ -376,7 +376,7 @@
                 if (method === 'GET' && !this.isOnline) return localData;
                 
                 if (['POST', 'PATCH', 'DELETE'].includes(method)) {
-                    if (method === 'POST') localData.push({ id: Date.now().toString(), ...body });
+                    if (method === 'POST') localData.push(body);
                     if (method === 'DELETE' && body?.id) localData = localData.filter(i => i.id !== body.id);
                     localStorage.setItem(localKey, JSON.stringify(localData));
                 }
@@ -402,7 +402,6 @@
 
                     const res = await fetch(url, options);
                     
-                    // If the database has an error (like table missing), don't go offline, just log it.
                     if (!res.ok) {
                         console.warn(`Supabase Database Error on ${table}: HTTP ${res.status}`);
                         return localData; 
@@ -417,7 +416,6 @@
                     return localData;
 
                 } catch (err) {
-                    // Actual network failure (no internet)
                     console.warn(`Network Error when fetching ${table}. Switching to Local Mode.`, err);
                     this.setOnline(false);
                     return localData;
@@ -433,7 +431,7 @@
                 try {
                     const headers = { 'apikey': Config.supaKey, 'Authorization': `Bearer ${Config.supaKey}`, 'Content-Type': 'application/json' };
                     const check = await fetch(`${Config.supaUrl}sync_state?id=eq.${key}`, { headers });
-                    if (!check.ok) return; // DB Error, ignore and keep local
+                    if (!check.ok) return; 
                     
                     const rows = await check.json();
                     if (rows && rows.length > 0) {
@@ -475,7 +473,6 @@
             worker: null,
             wakeLock: null,
             audioCtx: null,
-            bgAudio: null,
             
             init() {
                 this.setupWorker();
@@ -538,10 +535,6 @@
             },
             
             setupAudio() {
-                const silentMp3 = "data:audio/mp3;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU2LjM2LjEwMAAAAAAAAAAAAAAA//OEAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6urq6v////////////////////////////////8AAAAATGF2YzU2LjQxAAAAAAAAAAAAAAAAJAAAAAAAAAAAASDs90hvAAAAAAAAAAAAAAAAAAAA//MUZAAAAAGkAAAAAAAAA0gAAAAATEFN//MUZAMAAAGkAAAAAAAAA0gAAAAARTMu//MUZAYAAAGkAAAAAAAAA0gAAAAA//MUZAkAAAGkAAAAAAAAA0gAAAAA";
-                this.bgAudio = new Audio(silentMp3);
-                this.bgAudio.loop = true;
-                
                 window.AudioContext = window.AudioContext || window.webkitAudioContext;
                 if (window.AudioContext) {
                     this.audioCtx = new AudioContext();
@@ -552,7 +545,6 @@
                 if ('wakeLock' in navigator) {
                     try {
                         this.wakeLock = await navigator.wakeLock.request('screen');
-                        this.wakeLock.addEventListener('release', () => console.log('Wake Lock Released'));
                     } catch (err) { console.warn('Wake Lock failed', err); }
                 }
             },
@@ -645,7 +637,6 @@
                 document.querySelectorAll('nav button').forEach(el => el.classList.remove('nav-active'));
                 document.getElementById(`btn-tab-${tabId}`).classList.add('nav-active');
                 
-                // Specific renders
                 if (tabId === 'bodyweight') App.Bodyweight.render();
                 if (tabId === 'nutrition') App.Nutrition.render();
             },
@@ -701,7 +692,7 @@
                     Notification.requestPermission();
                 }
 
-                // Sync Routines via Supabase
+                // Sync Routines via Supabase state
                 let remoteRoutines = await DB.fetchState('routines');
                 if (remoteRoutines) {
                     this.State.routines = remoteRoutines;
@@ -709,14 +700,12 @@
                     let stored = JSON.parse(localStorage.getItem('trackfit_state_routines') || 'null');
                     if (stored) this.State.routines = stored;
                     else {
-                        // Migration from old key
                         let old = JSON.parse(localStorage.getItem('trackfit_routines') || 'null');
                         this.State.routines = old || DefaultData.routines;
                         DB.saveState('routines', this.State.routines);
                     }
                 }
 
-                // Load today's logs
                 this.State.logs = await DB.request('workout_logs', 'GET', null, `?date=eq.${this.State.dateStr}`) || [];
 
                 this.Workout.recoverSession();
@@ -777,11 +766,9 @@
                     this.updateUIForSession(App.State.isSessionActive);
 
                     if (App.State.isSessionActive) {
-                        Engine.bgAudio.play().catch(()=>{}); // Mobile requirement
                         Engine.requestWakeLock();
                         Engine.worker.postMessage({ cmd: 'START_SESSION', time: 0, setTime: 0 });
                     } else {
-                        Engine.bgAudio.pause();
                         Engine.releaseWakeLock();
                         Engine.worker.postMessage({ cmd: 'STOP_SESSION' });
                         App.State.sessionTime = 0;
@@ -839,7 +826,7 @@
 
                 jumpToExercise(i) {
                     App.State.activeExIndex = i;
-                    App.State.currentSet = 1; // Reset set count on jump
+                    App.State.currentSet = 1;
                     Engine.worker.postMessage({ cmd: 'STOP_REST' });
                     Engine.worker.postMessage({ cmd: 'RESET_SET_TIME' });
                     this.renderPills();
@@ -857,14 +844,12 @@
                     document.getElementById('target-reps').innerText = ex.reps;
                     document.getElementById('current-set').innerText = App.State.currentSet;
 
-                    // Prefill last weight if available in today's logs for this ex
                     const todayExLogs = App.State.logs.filter(l => l.exId === ex.id);
                     const weightInput = document.getElementById('log-weight');
                     
                     if (todayExLogs.length > 0) {
                         weightInput.value = todayExLogs[todayExLogs.length-1].weight;
                     } else {
-                        // Find historical best
                         let allLogs = JSON.parse(localStorage.getItem('trackfit_workout_logs') || '[]');
                         let hist = allLogs.filter(l => l.exId === ex.id).sort((a,b) => new Date(b.date) - new Date(a.date));
                         if(hist.length > 0) {
@@ -889,6 +874,7 @@
                     const ex = routine[App.State.activeExIndex];
 
                     const logEntry = {
+                        id: Date.now().toString(),
                         date: App.State.dateStr,
                         routine: App.State.activeRoutine,
                         exId: ex.id,
@@ -896,19 +882,18 @@
                         setNum: App.State.currentSet,
                         weight: weight,
                         reps: reps,
-                        duration: UI.formatTime(App.State.setTime) // Use setTime!
+                        duration: UI.formatTime(App.State.setTime)
                     };
 
-                    App.State.logs.push({...logEntry, id: Date.now().toString()});
+                    App.State.logs.push(logEntry);
                     await DB.request('workout_logs', 'POST', logEntry);
                     
                     this.renderTodayLogs();
 
-                    // Start Rest
                     const restDur = ex.sets >= 4 ? 90 : 60;
                     Engine.worker.postMessage({ cmd: 'START_REST', duration: restDur });
                     
-                    document.getElementById('log-reps').value = ''; // clear reps for next set
+                    document.getElementById('log-reps').value = '';
                     this.saveState();
                 },
 
@@ -921,7 +906,6 @@
                         this.renderActiveExercise();
                         this.saveState();
                     } else {
-                        // Prompt progression
                         if (App.State.activeExIndex < routine.length - 1) {
                             if(confirm(`Finished all sets for ${ex.name}. Move to next exercise?`)) {
                                 this.jumpToExercise(App.State.activeExIndex + 1);
@@ -940,14 +924,12 @@
 
                 renderTodayLogs() {
                     const cont = document.getElementById('today-logs-container');
-                    const routine = App.State.routines[App.State.activeRoutine];
                     
                     if (App.State.logs.length === 0) {
                         cont.innerHTML = '<p class="text-sm text-gray-500 italic px-2">No sets logged today.</p>';
                         return;
                     }
 
-                    // Group by exercise name
                     const grouped = {};
                     App.State.logs.forEach(l => {
                         if (!grouped[l.exName]) grouped[l.exName] = [];
@@ -991,8 +973,8 @@
                     const w = parseFloat(document.getElementById('bw-weight').value);
                     if (!d || isNaN(w)) return;
                     
-                    const entry = { date: d, weight: w };
-                    this.logs.push({ ...entry, id: Date.now().toString() });
+                    const entry = { id: Date.now().toString(), date: d, weight: w };
+                    this.logs.push(entry);
                     await DB.request('bodyweight_logs', 'POST', entry);
                     document.getElementById('bw-weight').value = '';
                     this.render();
@@ -1079,7 +1061,6 @@
                 editingId: null,
                 
                 async load() {
-                    // Sync Meals via Supabase state
                     let remoteMeals = await DB.fetchState('meals');
                     if (remoteMeals) {
                         this.meals = remoteMeals;
